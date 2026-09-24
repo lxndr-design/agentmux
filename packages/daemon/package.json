@@ -16,6 +16,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agentmux/protocol": "0.0.0"
+    "@agentmux/protocol": "0.0.0",
+    "better-sqlite3": "^12.11.1",
+    "ws": "^8.21.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/ws": "^8.18.1"
   }
 }
