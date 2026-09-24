@@ -1,0 +1,6 @@
+{"type":"system","subtype":"init","cwd":"/tmp/wt/claude-1","session_id":"abc-123","tools":["Bash"],"model":"claude-sonnet-4-5","permissionMode":"default","brand_new_init_field":{"nested":[1,2,3]}}
+{"type":"stream_event","event":{"type":"message_start","message":{"id":"msg_03","type":"message","role":"assistant","content":[]}},"parent_tool_use_id":null,"session_id":"abc-123","new_top_level_key":"whatever"}
+{"type":"weird_new_frame","data":1,"more":{"a":"b"}}
+{"type":"result","subtype":"success","is_error":false,"usage":{"input_tokens":3,"cache_read_input_tokens":100,"output_tokens":2,"totally_new_counter":7},"result":"ok","session_id":"abc-123"}
+this line is not json at all
+{"type":"assistant","message":{"id":"msg_04","type":"message","role":"assistant","content":[{"type":"text","text":"hi"}],"brand_new_field":[1,2]},"parent_tool_use_id":null,"session_id":"abc-123"}
