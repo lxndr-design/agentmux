@@ -1,0 +1,23 @@
+[
+  { "kind": "state_change", "from": "created", "to": "starting" },
+  { "kind": "state_change", "from": "starting", "to": "ready" },
+  {
+    "kind": "tool_use",
+    "callId": "toolu_01",
+    "tool": "Bash",
+    "detail": { "command": "rm -rf ./dist" }
+  },
+  { "kind": "turn", "turnId": "msg_02", "role": "assistant", "text": "", "done": true },
+  { "kind": "state_change", "from": "ready", "to": "working" },
+  {
+    "kind": "state_change",
+    "from": "working",
+    "to": "waiting-approval",
+    "request": {
+      "requestId": "req_01",
+      "tool": "Bash",
+      "risk": "high",
+      "command": "rm -rf ./dist"
+    }
+  }
+]

@@ -1,0 +1,16 @@
+[
+  { "kind": "state_change", "from": "created", "to": "starting" },
+  { "kind": "state_change", "from": "starting", "to": "ready" },
+  { "kind": "thinking", "text": "Token refresh races", "done": false, "turnId": "msg_01" },
+  { "kind": "thinking", "text": " on tab restore.", "done": false, "turnId": "msg_01" },
+  { "kind": "turn", "turnId": "msg_01", "role": "assistant", "text": "Checking ", "done": false },
+  {
+    "kind": "turn",
+    "turnId": "msg_01",
+    "role": "assistant",
+    "text": "src/auth.ts.",
+    "done": false
+  },
+  { "kind": "turn", "turnId": "msg_01", "role": "assistant", "text": "", "done": true },
+  { "kind": "usage", "tokensIn": 42, "tokensOut": 17 }
+]

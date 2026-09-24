@@ -1,0 +1,7 @@
+[
+  { "kind": "state_change", "from": "created", "to": "starting" },
+  { "kind": "state_change", "from": "starting", "to": "ready" },
+  { "kind": "usage", "tokensIn": 3, "tokensOut": 2 },
+  { "kind": "turn", "turnId": "msg_04", "role": "assistant", "text": "hi", "done": false },
+  { "kind": "turn", "turnId": "msg_04", "role": "assistant", "text": "", "done": true }
+]

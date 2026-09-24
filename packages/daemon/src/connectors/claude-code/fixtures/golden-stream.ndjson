@@ -1,0 +1,14 @@
+{"type":"system","subtype":"init","cwd":"/tmp/wt/claude-1","session_id":"abc-123","tools":["Bash","Read","Edit"],"model":"claude-sonnet-4-5","permissionMode":"default"}
+{"type":"stream_event","event":{"type":"message_start","message":{"id":"msg_01","type":"message","role":"assistant","content":[]}},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Token refresh races"}},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" on tab restore."}},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"sig-opaque"}},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"stream_event","event":{"type":"content_block_stop","index":0},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Checking "}},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"src/auth.ts."}},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"stream_event","event":{"type":"content_block_stop","index":1},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"stream_event","event":{"type":"message_stop"},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"assistant","message":{"id":"msg_01","type":"message","role":"assistant","model":"claude-sonnet-4-5","content":[{"type":"thinking","thinking":"Token refresh races on tab restore.","signature":"sig-opaque"},{"type":"text","text":"Checking src/auth.ts."}],"stop_reason":"end_turn","usage":{"input_tokens":42,"cache_creation_input_tokens":0,"cache_read_input_tokens":900,"output_tokens":17}},"parent_tool_use_id":null,"session_id":"abc-123"}
+{"type":"result","subtype":"success","is_error":false,"duration_ms":1200,"duration_api_ms":800,"num_turns":1,"total_cost_usd":0.003,"usage":{"input_tokens":42,"cache_creation_input_tokens":0,"cache_read_input_tokens":900,"output_tokens":17},"result":"Checking src/auth.ts.","session_id":"abc-123"}
