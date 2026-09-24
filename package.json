@@ -1,0 +1,27 @@
+{
+  "name": "agentmux",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "npm run build -w @agentmux/protocol && npm run build -w @agentmux/daemon && npm run build -w @agentmux/web",
+    "test": "npm run build && npm run test -w @agentmux/protocol && npm run test -w @agentmux/daemon && npm run test -w @agentmux/web",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "prettier": "^3.9.9",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^4.1.11"
+  }
+}
