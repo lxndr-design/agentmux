@@ -8,20 +8,18 @@ The full design lives in the architecture blueprint (Obvious project `prj_qiLzs4
 
 npm workspaces:
 
-| Path                | Package             | Purpose                                                        |
-| ------------------- | ------------------- | -------------------------------------------------------------- |
-| `packages/protocol` | `@agentmux/protocol`| Normalized agent-event envelope and types (shared, dependency-free) |
-| `packages/daemon`   | `@agentmux/daemon`  | Host daemon: agent supervision, approval policy, event journal |
-| `apps/web`          | `@agentmux/web`     | React + Vite UI shell                                          |
+| Path                | Package              | Purpose                                                             |
+| ------------------- | -------------------- | ------------------------------------------------------------------- |
+| `packages/protocol` | `@agentmux/protocol` | Normalized agent-event envelope and types (shared, dependency-free) |
+| `packages/daemon`   | `@agentmux/daemon`   | Host daemon: agent supervision, approval policy, event journal      |
+| `apps/web`          | `@agentmux/web`      | React + Vite UI shell                                               |
 
 ## Development
 
 ```sh
 npm install
-npm run build   # builds all workspaces (protocol first, in dependency order)
-npm test        # runs vitest in all workspaces
+npm run build   # builds all workspaces in dependency order
+npm test        # builds first, then runs vitest in all workspaces
 npm run lint    # ESLint
 npm run format:check
 ```
-
-Note: build once before running tests — workspace packages resolve each other from their built `dist/` output.
