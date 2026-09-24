@@ -99,6 +99,10 @@ export class EventJournal {
   }
 
   close(): void {
-    this.db.close();
+    // Idempotent — a second close on an already-closed handle is a no-op,
+    // matching the daemon's own close semantics.
+    if (this.db.open) {
+      this.db.close();
+    }
   }
 }

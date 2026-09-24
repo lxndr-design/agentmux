@@ -75,7 +75,15 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
 async function closeDaemon(server: Server, gateway: Gateway, journal: EventJournal): Promise<void> {
   await gateway.close();
   await new Promise<void>((resolve, reject) => {
-    server.close((error) => (error === undefined ? resolve() : reject(error)));
+    // Closing twice is a no-op, not an error — teardown paths and the
+    // occasional late hook both rely on that.
+    server.close((error) => {
+      if (error === undefined || ('code' in error && error.code === 'ERR_SERVER_NOT_RUNNING')) {
+        resolve();
+      } else {
+        reject(error);
+      }
+    });
   });
   journal.close();
 }
