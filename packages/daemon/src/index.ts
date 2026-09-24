@@ -1,4 +1,4 @@
-import { createEnvelope, type Envelope } from '@agentmux/protocol';
+import { createAgentEventEnvelope, type AgentEventEnvelope } from '@agentmux/protocol';
 
 /**
  * Daemon stub — the supervisor, approval policy engine, FS bridge, and SQLite
@@ -17,7 +17,11 @@ export function resolveDaemonOptions(options: DaemonOptions = {}): Required<Daem
   return { port: options.port ?? DAEMON_DEFAULT_PORT };
 }
 
-/** Stub session-status envelope; replaced when the real supervisor lands. */
-export function sessionReadyEnvelope(sessionId: string): Envelope<{ status: 'ready' }> {
-  return createEnvelope(sessionId, 0, 'session.status', { status: 'ready' });
+/** Stub session-ready envelope; replaced when the real supervisor lands. */
+export function sessionReadyEnvelope(sessionId: string): AgentEventEnvelope {
+  return createAgentEventEnvelope(sessionId, 0, {
+    kind: 'state_change',
+    from: 'starting',
+    to: 'ready',
+  });
 }
