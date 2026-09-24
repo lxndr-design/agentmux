@@ -13,9 +13,8 @@ describe('resolveDaemonOptions', () => {
 });
 
 describe('sessionReadyEnvelope', () => {
-  it('emits a session.status ready envelope from the protocol package', () => {
+  it('emits a ready state_change envelope from the protocol package', () => {
     const envelope = sessionReadyEnvelope('sess_1');
-    expect(envelope.kind).toBe('session.status');
-    expect(envelope.payload).toEqual({ status: 'ready' });
+    expect(envelope.payload).toEqual({ kind: 'state_change', from: 'starting', to: 'ready' });
   });
 });
