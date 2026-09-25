@@ -446,3 +446,183 @@ body {
   cursor: pointer;
   font-size: 0.8rem;
 }
+
+/* ---- Structured timeline renderers ---- */
+
+/* Markdown prose (assistant turns, thinking) */
+.md p {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.md p:last-child {
+  margin-bottom: 0;
+}
+
+.md h1,
+.md h2,
+.md h3 {
+  margin: 4px 0 4px;
+  font-size: 0.9em;
+}
+
+.md code {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+}
+
+.md pre {
+  margin: 4px 0;
+  padding: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.md pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.md a {
+  color: var(--accent);
+}
+
+.md ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+}
+
+/* Streaming visual state: pulsing caret on the row in flight */
+.tl-caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 2px;
+  background: var(--accent);
+  vertical-align: text-bottom;
+  animation: caret-blink 0.9s ease-in-out infinite;
+}
+
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+.tl-row[data-streaming] .tl-kind {
+  color: var(--accent);
+}
+
+/* Thinking block — muted, italic, collapsible (Codex-CLI reasoning style) */
+.tl-thinking {
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+.thinking-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.thinking-toggle:hover {
+  color: var(--text);
+}
+
+/* Tool cards with live status */
+.tool-card {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tool-card__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tool-card__summary {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-card[data-status='running'] {
+  border-color: var(--accent);
+}
+
+.tool-card[data-status='running'] .tool-card__status {
+  color: var(--accent);
+  animation: caret-blink 0.9s ease-in-out infinite;
+}
+
+.tool-card[data-status='ok'] .tool-card__status {
+  color: var(--ok);
+}
+
+.tool-card[data-status='error'] {
+  border-color: var(--danger);
+}
+
+.tool-card[data-status='error'] .tool-card__status {
+  color: var(--danger);
+}
+
+.tool-command,
+.tool-output,
+.tool-diff {
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tool-diff {
+  color: var(--ok);
+}
+
+.tool-paths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Usage footer */
+.usage-footer {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  padding: 4px 8px;
+  border-top: 1px solid var(--border);
+}
