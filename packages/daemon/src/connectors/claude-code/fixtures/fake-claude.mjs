@@ -10,7 +10,6 @@
  *   FAKE_CHILD_MARKER   spawn a long-lived child and write its pid here
  *                       (proves the whole process group dies on kill)
  */
-/* global setInterval */
 
 import { fork } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
