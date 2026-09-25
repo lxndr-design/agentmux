@@ -446,3 +446,269 @@ body {
   cursor: pointer;
   font-size: 0.8rem;
 }
+
+/* ---- File tree pane ---- */
+
+.file-tree {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.82rem;
+}
+
+.file-tree__bar {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.file-tree__root-select {
+  width: 100%;
+  background: var(--bg-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 0.78rem;
+}
+
+.file-tree__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.file-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 3px 8px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.file-tree__row:hover {
+  background: var(--bg-hover);
+}
+
+.file-tree__marker {
+  width: 12px;
+  flex: none;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+}
+
+.file-tree__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree__loading,
+.file-tree__empty {
+  color: var(--text-dim);
+  padding: 12px;
+}
+
+.file-tree__error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 8px;
+  padding: 6px 8px;
+  font-size: 0.75rem;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  background: rgba(255, 91, 106, 0.08);
+}
+
+.file-tree__error-dismiss {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+}
+
+/* ---- Editor pane ---- */
+
+.editor {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem;
+}
+
+.editor__path {
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor__dirty {
+  color: #e6b455;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.editor__external {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #e6b455;
+  font-size: 0.72rem;
+}
+
+.editor__reload {
+  background: transparent;
+  border: 1px solid #e6b455;
+  color: #e6b455;
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.editor__save {
+  margin-left: auto;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.editor__save:disabled {
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  cursor: not-allowed;
+}
+
+.editor__close {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.editor__empty {
+  color: var(--text-dim);
+  text-align: center;
+  padding: 24px;
+  margin: 0;
+}
+
+.editor__host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor__host--hidden {
+  display: none;
+}
+
+.editor__host .cm-editor {
+  height: 100%;
+  font-size: 0.85rem;
+}
+
+/* ---- Diff pane ---- */
+
+.diff {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.diff__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem;
+}
+
+.diff__title {
+  color: var(--text-dim);
+}
+
+.diff__stat-add {
+  color: var(--ok);
+}
+
+.diff__stat-del {
+  color: var(--danger);
+}
+
+.diff__clean {
+  color: var(--text-dim);
+  text-align: center;
+  padding: 24px;
+  margin: 0;
+}
+
+.diff__body {
+  flex: 1;
+  overflow-y: auto;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.diff__row {
+  display: flex;
+  gap: 8px;
+  padding: 0 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.diff__row--add {
+  background: rgba(62, 207, 142, 0.1);
+}
+
+.diff__row--del {
+  background: rgba(255, 91, 106, 0.1);
+}
+
+.diff__row--add .diff__sign {
+  color: var(--ok);
+}
+
+.diff__row--del .diff__sign {
+  color: var(--danger);
+}
+
+.diff__sign {
+  width: 12px;
+  flex: none;
+}
+
+.diff--empty .diff__empty {
+  color: var(--text-dim);
+  padding: 24px;
+  text-align: center;
+}
