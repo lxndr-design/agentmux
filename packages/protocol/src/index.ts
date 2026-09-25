@@ -12,3 +12,4 @@ export * from './session.js';
 export * from './approval.js';
 export * from './events.js';
 export * from './envelope.js';
+export * from './fs.js';

@@ -3,6 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocket, WebSocketServer } from 'ws';
 import type { AgentEventEnvelope } from '@agentmux/protocol';
+import { FsBridgeError, splitSessionPath, type FsBridge, type FsChangeEvent } from './fs-bridge.js';
 import type { EventJournal } from './journal.js';
 import { clientMessageSchema, type ServerMessage } from './wire.js';
 
@@ -12,6 +13,12 @@ const REPLAY_BATCH_SIZE = 500;
 export interface GatewayOptions {
   journal: EventJournal;
   token: string;
+  /**
+   * The FS bridge serving file RPC — absent until the bridge is wired in
+   * (boot order: journal → gateway → bridge), so fs_request degrades to a
+   * typed error instead of crashing the session path.
+   */
+  fsBridge?: FsBridge;
 }
 
 /**
@@ -118,6 +125,66 @@ export class Gateway {
     }
     if (parsed.data.type === 'subscribe') {
       this.subscribe(ws, parsed.data.sessionId, parsed.data.fromSeq ?? -1);
+      return;
+    }
+    if (parsed.data.type === 'fs_request') {
+      this.handleFsRequest(ws, parsed.data.requestId, parsed.data.request);
+    }
+  }
+
+  /**
+   * FS RPC: validate, dispatch into the bridge (the sandbox lives there),
+   * and answer exactly one fs_result or fs_error for the request id. A
+   * missing bridge is a typed error, not a silent hang.
+   */
+  private async handleFsRequest(
+    ws: WebSocket,
+    requestId: string,
+    request: Parameters<FsBridge['dispatch']>[0],
+  ): Promise<void> {
+    if (this.options.fsBridge === undefined) {
+      this.send(ws, {
+        type: 'fs_error',
+        requestId,
+        error: { code: 'E_IO', message: 'no filesystem bridge is running' },
+      });
+      return;
+    }
+    try {
+      const result = await this.options.fsBridge.dispatch(request);
+      this.send(ws, { type: 'fs_result', requestId, result });
+    } catch (error) {
+      const bridgeError =
+        error instanceof FsBridgeError
+          ? error
+          : new FsBridgeError('E_IO', `filesystem request failed: ${(error as Error).message}`);
+      this.send(ws, {
+        type: 'fs_error',
+        requestId,
+        error: { code: bridgeError.code, message: bridgeError.message },
+      });
+    }
+  }
+
+  /**
+   * File changes are workspace-global — broadcast to every connection, not
+   * per-session subscribers, so a file pane reacts to edits from any pane or
+   * agent process.
+   */
+  broadcastFsChange(event: FsChangeEvent): void {
+    if (this.wss.clients.size === 0) {
+      return;
+    }
+    const message = JSON.stringify({
+      type: 'fs_change',
+      path: event.path,
+      changeType: event.type,
+      session: splitSessionPath(event.path) ?? null,
+    } satisfies ServerMessage);
+    for (const ws of this.wss.clients) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message);
+      }
     }
   }
 

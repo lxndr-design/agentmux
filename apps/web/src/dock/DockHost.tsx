@@ -1,6 +1,9 @@
 import { DockviewApi, DockviewReadyEvent, DockviewReact } from 'dockview-react';
 import { AgentPane } from '../panes/AgentPane';
 import { TerminalPane } from '../panes/TerminalPane';
+import { FileTreePane } from '../panes/FileTreePane';
+import { EditorPane } from '../panes/EditorPane';
+import { DiffPane } from '../panes/DiffPane';
 import 'dockview-react/dist/styles/dockview.css';
 
 /**
@@ -18,9 +21,24 @@ function TerminalPanel() {
   return <TerminalPane />;
 }
 
+function FileTreePanel() {
+  return <FileTreePane />;
+}
+
+function EditorPanel() {
+  return <EditorPane />;
+}
+
+function DiffPanel() {
+  return <DiffPane />;
+}
+
 const components = {
   agent: AgentPanel,
   terminal: TerminalPanel,
+  files: FileTreePanel,
+  editor: EditorPanel,
+  diff: DiffPanel,
 };
 
 export function DockHost() {
@@ -32,6 +50,27 @@ export function DockHost() {
       component: 'terminal',
       title: 'terminal',
       position: { referencePanel: 'agent', direction: 'below' },
+    });
+    api.addPanel({
+      id: 'files',
+      component: 'files',
+      title: 'files',
+      // Own group on the left (classic file-tree placement). Positioning it
+      // relative to nothing would tab it into the agent group and hide the
+      // terminal pane's group in the walking-skeleton test.
+      position: { referencePanel: 'agent', direction: 'left' },
+    });
+    api.addPanel({
+      id: 'editor',
+      component: 'editor',
+      title: 'editor',
+      position: { referencePanel: 'agent', direction: 'right' },
+    });
+    api.addPanel({
+      id: 'diff',
+      component: 'diff',
+      title: 'diff',
+      position: { referencePanel: 'editor', direction: 'below' },
     });
   };
 

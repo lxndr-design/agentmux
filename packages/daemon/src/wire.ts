@@ -1,13 +1,55 @@
 import { z } from 'zod';
-import { agentEventEnvelopeSchema } from '@agentmux/protocol';
+import {
+  agentEventEnvelopeSchema,
+  fsErrorSchema,
+  fsRequestSchema,
+  fsResultSchema,
+} from '@agentmux/protocol';
 
 /**
  * Gateway wire messages — the daemon↔UI session-control layer. Event payloads
  * are never re-declared here: envelopes ride verbatim through
- * `agentEventEnvelopeSchema` from @agentmux/protocol. Approval decisions do
- * not appear yet — they re-enter through the connectors' stdin once the
- * approval engine lands (blueprint: "The human in the loop").
+ * `agentEventEnvelopeSchema` from @agentmux/protocol, and so do filesystem
+ * RPC payloads (`fsRequestSchema` / `fsResultSchema` / `fsErrorSchema`).
+ * Approval decisions do not appear yet — they re-enter through the
+ * connectors' stdin once the approval engine lands (blueprint: "The human in
+ * the loop").
  */
+
+export const fsRequestMessageSchema = z.object({
+  type: z.literal('fs_request'),
+  /** Caller-chosen correlation id — responses echo it verbatim. */
+  requestId: z.string().min(1),
+  request: fsRequestSchema,
+});
+
+export const fsResultMessageSchema = z.object({
+  type: z.literal('fs_result'),
+  requestId: z.string().min(1),
+  result: fsResultSchema,
+});
+
+export const fsErrorMessageSchema = z.object({
+  type: z.literal('fs_error'),
+  requestId: z.string().min(1),
+  error: fsErrorSchema,
+});
+
+/**
+ * A workspace file changed (the FS bridge watcher). `path` is
+ * workspace-root-relative; `session` is the root-relative view when the path
+ * sits inside a managed worktree, so panes watching a session root can react
+ * without knowing the host layout.
+ */
+export const fsChangeMessageSchema = z.object({
+  type: z.literal('fs_change'),
+  path: z.string().min(1),
+  changeType: z.enum(['add', 'change', 'unlink', 'addDir', 'unlinkDir']),
+  session: z
+    .object({ sessionId: z.string().min(1), path: z.string().min(1) })
+    .nullable()
+    .optional(),
+});
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({
@@ -19,6 +61,7 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
      */
     fromSeq: z.number().int().nonnegative().optional(),
   }),
+  fsRequestMessageSchema,
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
@@ -50,5 +93,8 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
   replayEndMessageSchema,
   eventMessageSchema,
   errorMessageSchema,
+  fsResultMessageSchema,
+  fsErrorMessageSchema,
+  fsChangeMessageSchema,
 ]);
 export type ServerMessage = z.infer<typeof serverMessageSchema>;

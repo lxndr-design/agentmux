@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { agentEventEnvelopeSchema } from '@agentmux/protocol';
+import {
+  agentEventEnvelopeSchema,
+  fsErrorSchema,
+  fsRequestSchema,
+  fsResultSchema,
+} from '@agentmux/protocol';
 
 /**
  * Client/server wire messages — mirrored from packages/daemon/src/wire.ts.
@@ -48,11 +53,52 @@ export const errorMessageSchema = z.object({
   message: z.string(),
 });
 
+/**
+ * Filesystem RPC over the same gateway (blueprint "A bridge, not a bypass").
+ * `requestId` correlates responses on this connection; `fs_change` is a
+ * workspace-global notification with an optional session-root view.
+ */
+
+export const fsRequestMessageSchema = z.object({
+  type: z.literal('fs_request'),
+  requestId: z.string().min(1),
+  request: fsRequestSchema,
+});
+export type FsRequestMessage = z.infer<typeof fsRequestMessageSchema>;
+
+export const fsResultMessageSchema = z.object({
+  type: z.literal('fs_result'),
+  requestId: z.string().min(1),
+  result: fsResultSchema,
+});
+export type FsResultMessage = z.infer<typeof fsResultMessageSchema>;
+
+export const fsErrorMessageSchema = z.object({
+  type: z.literal('fs_error'),
+  requestId: z.string().min(1),
+  error: fsErrorSchema,
+});
+export type FsErrorMessage = z.infer<typeof fsErrorMessageSchema>;
+
+export const fsChangeMessageSchema = z.object({
+  type: z.literal('fs_change'),
+  path: z.string().min(1),
+  changeType: z.enum(['add', 'change', 'unlink', 'addDir', 'unlinkDir']),
+  session: z
+    .object({ sessionId: z.string().min(1), path: z.string().min(1) })
+    .nullable()
+    .optional(),
+});
+export type FsChangeMessage = z.infer<typeof fsChangeMessageSchema>;
+
 export const serverMessageSchema = z.discriminatedUnion('type', [
   replayMessageSchema,
   replayEndMessageSchema,
   eventMessageSchema,
   errorMessageSchema,
+  fsResultMessageSchema,
+  fsErrorMessageSchema,
+  fsChangeMessageSchema,
 ]);
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
 

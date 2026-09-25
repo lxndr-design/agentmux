@@ -2,18 +2,29 @@ import { describe, expect, it } from 'vitest';
 import { DAEMON_DEFAULT_HOST, DAEMON_DEFAULT_PORT, resolveDaemonOptions } from './config.js';
 
 describe('resolveDaemonOptions', () => {
-  it('defaults to the blueprint loopback bind', () => {
+  it('defaults to the blueprint loopback bind and the process cwd workspace', () => {
     expect(resolveDaemonOptions()).toEqual({
       port: DAEMON_DEFAULT_PORT,
       host: DAEMON_DEFAULT_HOST,
       journalPath: ':memory:',
+      workspaceRoot: process.cwd(),
     });
   });
 
-  it('honors explicit loopback options', () => {
+  it('honors explicit loopback options and workspace root', () => {
     expect(
-      resolveDaemonOptions({ port: 9000, host: '::1', journalPath: 'journal.sqlite3' }),
-    ).toEqual({ port: 9000, host: '::1', journalPath: 'journal.sqlite3' });
+      resolveDaemonOptions({
+        port: 9000,
+        host: '::1',
+        journalPath: 'journal.sqlite3',
+        workspaceRoot: '/tmp/ws',
+      }),
+    ).toEqual({
+      port: 9000,
+      host: '::1',
+      journalPath: 'journal.sqlite3',
+      workspaceRoot: '/tmp/ws',
+    });
   });
 
   it('normalizes localhost to the IPv4 loopback', () => {
