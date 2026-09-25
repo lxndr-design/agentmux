@@ -2,12 +2,15 @@ import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocket, WebSocketServer } from 'ws';
-import type { AgentEventEnvelope } from '@agentmux/protocol';
+import type { AgentEventEnvelope, ApprovalDecision } from '@agentmux/protocol';
 import type { EventJournal } from './journal.js';
 import { clientMessageSchema, type ServerMessage } from './wire.js';
 
 /** Replay batches cap the size of a single WS frame. */
 const REPLAY_BATCH_SIZE = 500;
+
+/** What the approval engine answers when a client sends a decision. */
+export type DecisionRoute = { ok: true } | { ok: false; error: string };
 
 export interface GatewayOptions {
   journal: EventJournal;
@@ -54,6 +57,11 @@ function tokenMatches(candidate: string, expected: string): boolean {
 export class Gateway {
   private readonly wss: WebSocketServer;
   private readonly subscribers = new Map<string, Set<WebSocket>>();
+  /**
+   * Set by the daemon after construction — the approval engine's intake. A
+   * rejection flows back to the sending client as a wire `error` message.
+   */
+  onDecision: ((sessionId: string, decision: ApprovalDecision) => DecisionRoute) | null = null;
 
   constructor(private readonly options: GatewayOptions) {
     this.wss = new WebSocketServer({ noServer: true });
@@ -118,6 +126,15 @@ export class Gateway {
     }
     if (parsed.data.type === 'subscribe') {
       this.subscribe(ws, parsed.data.sessionId, parsed.data.fromSeq ?? -1);
+      return;
+    }
+    if (parsed.data.type === 'decide') {
+      const outcome =
+        this.onDecision?.(parsed.data.sessionId, parsed.data.decision) ??
+        ({ ok: false, error: 'no approval engine is running' } satisfies DecisionRoute);
+      if (!outcome.ok) {
+        this.send(ws, { type: 'error', message: outcome.error });
+      }
     }
   }
 

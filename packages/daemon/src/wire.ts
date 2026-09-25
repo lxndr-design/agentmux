@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { agentEventEnvelopeSchema } from '@agentmux/protocol';
+import { agentEventEnvelopeSchema, approvalDecisionSchema } from '@agentmux/protocol';
 
 /**
  * Gateway wire messages — the daemon↔UI session-control layer. Event payloads
  * are never re-declared here: envelopes ride verbatim through
- * `agentEventEnvelopeSchema` from @agentmux/protocol. Approval decisions do
- * not appear yet — they re-enter through the connectors' stdin once the
- * approval engine lands (blueprint: "The human in the loop").
+ * `agentEventEnvelopeSchema` from @agentmux/protocol. Approval decisions ride
+ * `decide` messages: the pinned column's answer, routed by the approval
+ * engine into the connector's stdin (blueprint: "The human in the loop").
  */
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
@@ -18,6 +18,11 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
      * gap. Omitted means "I have seen nothing" — full replay from seq 0.
      */
     fromSeq: z.number().int().nonnegative().optional(),
+  }),
+  z.object({
+    type: z.literal('decide'),
+    sessionId: z.string().min(1),
+    decision: approvalDecisionSchema,
   }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
