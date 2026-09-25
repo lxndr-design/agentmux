@@ -1,0 +1,39 @@
+[
+  { "kind": "state_change", "from": "created", "to": "starting" },
+  { "kind": "state_change", "from": "starting", "to": "ready" },
+  { "kind": "turn", "turnId": "turn-1", "role": "user", "text": "fix the bug", "done": true },
+  { "kind": "state_change", "from": "ready", "to": "working" },
+  {
+    "kind": "thinking",
+    "turnId": "t_1",
+    "text": "Checking the auth flow",
+    "done": false
+  },
+  { "kind": "turn", "turnId": "t_1", "role": "assistant", "text": "Updating ", "done": false },
+  {
+    "kind": "turn",
+    "turnId": "t_1",
+    "role": "assistant",
+    "text": "src/auth.ts",
+    "done": false
+  },
+  {
+    "kind": "tool_use",
+    "callId": "c_1",
+    "tool": "shell",
+    "detail": { "command": "rm -rf ./dist" }
+  },
+  {
+    "kind": "state_change",
+    "from": "working",
+    "to": "waiting-approval",
+    "request": {
+      "requestId": "codex-approval-7",
+      "tool": "shell",
+      "risk": "high",
+      "command": "rm -rf ./dist"
+    }
+  },
+  { "kind": "state_change", "from": "waiting-approval", "to": "working" },
+  { "kind": "turn", "turnId": "t_1", "role": "assistant", "text": "", "done": true }
+]

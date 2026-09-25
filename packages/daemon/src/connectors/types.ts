@@ -12,6 +12,14 @@ import type { AgentEvent, ApprovalDecision, ExitInfo, SessionState } from '@agen
 export interface ConnectorDetectResult {
   installed: boolean;
   version?: string;
+  /**
+   * Subscription-auth state for CLIs that log in outside agentmux (Codex:
+   * ChatGPT plan vs API key vs none — F3a/F3b). Credentials are the user's
+   * own and stay with the CLI; this only reports what the CLI itself reports.
+   */
+  authState?: 'subscription' | 'api-key' | 'other' | 'none' | 'unavailable';
+  /** Human-readable auth diagnostic rendered next to the state. */
+  authDetail?: string;
 }
 
 /**

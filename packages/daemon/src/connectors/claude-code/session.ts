@@ -3,6 +3,7 @@ import pty from 'node-pty';
 import type { AgentEvent, ApprovalDecision, ExitInfo, SessionState } from '@agentmux/protocol';
 import { ClaudeStreamParser } from './parser.js';
 import { encodeApprovalDecisionMessage, encodeUserTurnMessage } from './wire.js';
+import { LineSplitter, POSIX_EXEC_WRAPPER, signalGroup, signalName } from '../pty.js';
 import type { SessionEventSink, SessionSpawnConfig } from '../types.js';
 
 const DEFAULT_KILL_GRACE_MS = 5_000;
@@ -31,14 +32,6 @@ export function buildSpawnArgs(config: SessionSpawnConfig): string[] {
     ...(config.model ? ['--model', config.model] : []),
   ];
 }
-
-/**
- * The PTY line discipline echoes our stdin JSON back onto stdout and caps a
- * canonical-mode line at 4096 bytes — both corrupt a stream-json session.
- * Disabling echo and canonical mode before exec fixes both; the parser still
- * ignores text-only stdout user frames as defense in depth.
- */
-const POSIX_EXEC_WRAPPER = 'stty raw -echo 2>/dev/null; exec "$@"';
 
 /**
  * A live Claude Code session: one PTY-supervised CLI process, its NDJSON
@@ -153,39 +146,5 @@ export class ClaudeCodeSession {
 
   private writeLine(line: string): void {
     this.pty.write(`${line}\n`);
-  }
-}
-
-function signalGroup(pid: number, signal: 'SIGINT' | 'SIGKILL'): void {
-  try {
-    if (process.platform === 'win32') return; // no process groups; v1 targets darwin/linux
-    process.kill(-pid, signal);
-  } catch (error) {
-    // ESRCH = the group is already gone; anything else surfaces.
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
-  }
-}
-
-function signalName(signal: number): string {
-  // node-pty reports the numeric signal; the common names keep the journal
-  // human-auditable ("what did I kill and how").
-  const names: Record<number, string> = { 2: 'SIGINT', 9: 'SIGKILL', 15: 'SIGTERM' };
-  return names[signal] ?? `signal-${signal}`;
-}
-
-class LineSplitter {
-  private buffer = '';
-
-  constructor(private readonly onLine: (line: string) => void) {}
-
-  push(chunk: string): void {
-    this.buffer += chunk;
-    let newlineAt = this.buffer.indexOf('\n');
-    while (newlineAt !== -1) {
-      const line = this.buffer.slice(0, newlineAt);
-      this.buffer = this.buffer.slice(newlineAt + 1);
-      this.onLine(line.endsWith('\r') ? line.slice(0, -1) : line);
-      newlineAt = this.buffer.indexOf('\n');
-    }
   }
 }

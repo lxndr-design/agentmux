@@ -1,0 +1,33 @@
+[
+  { "kind": "thinking", "text": "Tracing the token refresh race.", "done": true },
+  {
+    "kind": "turn",
+    "turnId": "item_1",
+    "role": "assistant",
+    "text": "Fixed the race.",
+    "done": false
+  },
+  { "kind": "turn", "turnId": "item_1", "role": "assistant", "text": "", "done": true },
+  { "kind": "tool_use", "callId": "item_2", "tool": "shell", "detail": { "command": "npm test" } },
+  { "kind": "tool_result", "callId": "item_2", "output": "all green", "truncated": false },
+  {
+    "kind": "tool_use",
+    "callId": "item_3",
+    "tool": "apply-patch",
+    "detail": { "paths": ["src/auth.ts"] }
+  },
+  {
+    "kind": "tool_result",
+    "callId": "item_3",
+    "output": "update: src/auth.ts\nstatus: completed",
+    "truncated": false
+  },
+  {
+    "kind": "tool_use",
+    "callId": "item_4",
+    "tool": "shell",
+    "detail": { "command": "rm -rf ./dist" }
+  },
+  { "kind": "tool_result", "callId": "item_4", "output": "", "truncated": false, "isError": true },
+  { "kind": "usage", "tokensIn": 120, "tokensOut": 45 }
+]
