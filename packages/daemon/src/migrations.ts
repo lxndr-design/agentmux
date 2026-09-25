@@ -9,6 +9,12 @@ import type { Database } from 'better-sqlite3';
  * duplicate seq into a storage error rather than a rebind bug, and the two
  * triggers make the journal append-only at the database level: the API surface
  * is the first guard, these are the second.
+ *
+ * 002 — the live session process registry. The daemon journals every live
+ * process group here so a crashed daemon's orphaned agent processes can be
+ * identified and reaped at the next boot (blueprint: "Kill semantics" —
+ * "Process-group ids journaled; boot-time reap"). Unlike `events` this table
+ * is mutable: rows are upserted on spawn and deleted on clean exit.
  */
 export const MIGRATIONS: readonly string[] = [
   `
@@ -32,6 +38,15 @@ export const MIGRATIONS: readonly string[] = [
   BEGIN
     SELECT RAISE(ABORT, 'agentmux journal is append-only');
   END;
+  `,
+  `
+  CREATE TABLE session_processes (
+    session_id TEXT PRIMARY KEY,
+    pgid       INTEGER NOT NULL,
+    runtime_id TEXT    NOT NULL,
+    cwd        TEXT    NOT NULL,
+    started_at INTEGER NOT NULL
+  );
   `,
 ];
 

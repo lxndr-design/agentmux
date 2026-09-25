@@ -90,6 +90,16 @@ export class EventJournal {
     return this.maxSeqStmt.get(sessionId)?.maxSeq ?? undefined;
   }
 
+  /**
+   * The underlying SQLite handle, for host-owned bookkeeping tables that
+   * share the daemon's single state of record (the process registry; see
+   * migration 002). The `events` table stays append-only — its triggers are
+   * unaffected by whoever else holds this handle.
+   */
+  get database(): Database.Database {
+    return this.db;
+  }
+
   /** Session ids present in the journal, sorted. */
   sessions(): string[] {
     const stmt = this.db.prepare<[], { id: string }>(
