@@ -10,7 +10,11 @@
  *   GET  /demo/config                        -> { wsUrl, token }
  *   POST /demo/sessions        {name}        -> { sessionId }
  *   POST /demo/sessions/:id/stop             -> { ok: true }
- *   POST /demo/sessions/:id/decision         -> { ok: true }
+ *
+ * Approval decisions deliberately have NO control endpoint: they flow the
+ * production path — browser → WS `decide` → daemon approval engine → this
+ * file's session handle (`respondToApproval`) — exactly what the connector
+ * stdin round-trip uses. The dogfood exercises the real thing.
  *
  * The scripted session runs to waiting-approval and blocks there; an approval
  * decision resumes (approve*) or stops (deny) it — the same observable
@@ -98,6 +102,35 @@ function startSession(name) {
   const session = { name, state: 'created', timers: [] };
   sessions.set(sessionId, session);
 
+  // The default preset escalates everything — the demo stays on the human
+  // path, so the pinned column behaves exactly as it will for real CLIs.
+  daemon.approvals.setPolicy(sessionId, { connectorId: 'demo', preset: 'default' });
+  daemon.approvals.attachSession(sessionId, {
+    // The engine calls this when the human (WS decide) or a policy/timeout
+    // auto-decision resolves a pending request — the harness's stand-in for
+    // the connector's stdin write.
+    respondToApproval(decision) {
+      if (decision.decision === 'deny') {
+        daemon.ingest(sessionId, {
+          kind: 'state_change',
+          from: 'waiting-approval',
+          to: 'stopped',
+          exit: { code: 0, reason: `denied: ${decision.reason ?? 'no reason given'}` },
+        });
+        session.state = 'stopped';
+        return;
+      }
+      resumptionEvents().forEach((event, index) => {
+        session.timers.push(
+          setTimeout(() => {
+            daemon.ingest(sessionId, event);
+            if (event.kind === 'state_change') session.state = event.to;
+          }, index * 150),
+        );
+      });
+    },
+  });
+
   preludeEvents().forEach((event, index) => {
     // Small gaps so live-mode rendering is observable, not one burst.
     session.timers.push(
@@ -116,6 +149,8 @@ function stopSession(sessionId) {
   clearTimers(session);
   if (session.state !== 'stopped' && session.state !== 'crashed') {
     // Any non-terminal state may transition to stopped; exit info rides along.
+    // The engine's terminal-state cleanup drops pending approval timers, so
+    // nothing auto-denies a session the operator just stopped.
     daemon.ingest(sessionId, {
       kind: 'state_change',
       from: session.state,
@@ -124,31 +159,6 @@ function stopSession(sessionId) {
     });
     session.state = 'stopped';
   }
-  return true;
-}
-
-function deliverDecision(sessionId, decision) {
-  const session = sessions.get(sessionId);
-  if (session === undefined || session.state !== 'waiting-approval') return false;
-  clearTimers(session);
-  if (decision.decision === 'deny') {
-    daemon.ingest(sessionId, {
-      kind: 'state_change',
-      from: 'waiting-approval',
-      to: 'stopped',
-      exit: { code: 0, reason: `denied: ${decision.reason ?? 'no reason given'}` },
-    });
-    session.state = 'stopped';
-    return true;
-  }
-  resumptionEvents().forEach((event, index) => {
-    session.timers.push(
-      setTimeout(() => {
-        daemon.ingest(sessionId, event);
-        if (event.kind === 'state_change') session.state = event.to;
-      }, index * 150),
-    );
-  });
   return true;
 }
 
@@ -204,31 +214,6 @@ http
     if (request.method === 'POST' && stopMatch !== null) {
       const stopped = stopSession(decodeURIComponent(stopMatch[1]));
       json({ ok: stopped });
-      return;
-    }
-    const decisionMatch = /^\/demo\/sessions\/([^/]+)\/decision$/.exec(request.url ?? '');
-    if (request.method === 'POST' && decisionMatch !== null) {
-      readBody((raw) => {
-        let decision;
-        try {
-          decision = JSON.parse(raw);
-        } catch {
-          decision = null;
-        }
-        if (
-          decision === null ||
-          typeof decision !== 'object' ||
-          typeof decision.requestId !== 'string' ||
-          !['approve', 'approve-for-session', 'deny'].includes(decision.decision)
-        ) {
-          response.writeHead(400, { 'content-type': 'text/plain', ...cors });
-          response.end(
-            'decision must be { requestId, decision: approve|approve-for-session|deny }',
-          );
-          return;
-        }
-        json({ ok: deliverDecision(decodeURIComponent(decisionMatch[1]), decision) });
-      });
       return;
     }
     notFound();

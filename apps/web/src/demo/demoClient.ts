@@ -1,19 +1,21 @@
 import { z } from 'zod';
-import type { ApprovalDecision } from '@agentmux/protocol';
 
 /**
  * Demo control client — test/dev scaffolding ONLY.
  *
  * The daemon has no spawn/kill surface yet (the supervisor and automation API
  * are later PRs), so the walking skeleton drives sessions through a local
- * demo harness (scripts/demo-harness.mjs): a scripted fake agent plus a
- * loopback control endpoint. The harness runs in-process with the real
- * daemon, so everything the browser sees is the genuine journal → gateway →
- * WS path; only the agent itself is fake.
+ * demo harness (demo/harness.mjs): a scripted fake agent plus a loopback
+ * control endpoint. The harness runs in-process with the real daemon, so
+ * everything the browser sees is the genuine journal → gateway → WS path;
+ * only the agent itself is fake.
+ *
+ * Approval decisions have no demo route at all: they flow the production WS
+ * `decide` message into the daemon's approval engine (see wsClient.ts), which
+ * is the same path real connector sessions use.
  *
  * When the control endpoint is absent (production daemon, no harness), every
- * call here is unreachable and the UI degrades: start/stop disabled, local
- * decision recording only.
+ * call here is unreachable and the UI degrades: start/stop disabled.
  */
 
 /** '' in the harness-served build means same origin (the harness fronts it). */
@@ -58,21 +60,6 @@ export async function stopDemoSession(sessionId: string): Promise<void> {
   });
   if (!response.ok) {
     throw new Error(`demo stop failed: ${response.status}`);
-  }
-  okSchema.parse(await response.json());
-}
-
-export async function sendDemoDecision(
-  sessionId: string,
-  decision: ApprovalDecision,
-): Promise<void> {
-  const response = await fetch(`${BASE}/demo/sessions/${encodeURIComponent(sessionId)}/decision`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(decision),
-  });
-  if (!response.ok) {
-    throw new Error(`demo decision failed: ${response.status}`);
   }
   okSchema.parse(await response.json());
 }
