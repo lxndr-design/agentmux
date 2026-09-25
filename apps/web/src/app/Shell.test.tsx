@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Shell } from './Shell.js';
-import { deriveEnvelopeView, useSessionStore } from '../state/sessionStore.js';
+import { attachClient, deriveEnvelopeView, useSessionStore } from '../state/sessionStore.js';
 import type { AgentEventEnvelope } from '@agentmux/protocol';
 import { createAgentEventEnvelope } from '@agentmux/protocol';
 
@@ -144,11 +144,31 @@ describe('Shell', () => {
   });
 
   it('shows the full command on the approval card and clears it on deny', async () => {
-    const fetchMock = vi.fn(
-      async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
-    );
-    vi.stubGlobal('fetch', fetchMock);
+    // Decisions ride the production WS round-trip, not a demo fetch — stub
+    // the socket and assert the `decide` frame the daemon will receive.
+    class FakeWebSocket {
+      static OPEN = 1;
+      static instances: FakeWebSocket[] = [];
+      readyState = FakeWebSocket.OPEN;
+      sent: string[] = [];
+      onopen: (() => void) | null = null;
+      onmessage: ((event: { data: unknown }) => void) | null = null;
+      onerror: (() => void) | null = null;
+      onclose: (() => void) | null = null;
+      constructor(public url: string) {
+        FakeWebSocket.instances.push(this);
+      }
+      send(data: string): void {
+        this.sent.push(data);
+      }
+      close(): void {
+        /* no-op */
+      }
+    }
+    FakeWebSocket.instances.length = 0;
+    vi.stubGlobal('WebSocket', FakeWebSocket);
     seedPendingApproval();
+    attachClient('s1', 'ws://127.0.0.1:8787');
 
     const user = userEvent.setup();
     render(<Shell />);
@@ -160,10 +180,20 @@ describe('Shell', () => {
 
     await user.click(within(card).getByTestId('deny-btn'));
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/demo/sessions/s1/decision'),
-      expect.objectContaining({ method: 'POST' }),
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) throw new Error('expected an attached socket');
+    const frames = socket.sent.map(
+      (data) =>
+        JSON.parse(data) as { type: string; decision?: { requestId?: string; decision?: string } },
     );
+    expect(
+      frames.some(
+        (frame) =>
+          frame.type === 'decide' &&
+          frame.decision?.requestId === 'r1' &&
+          frame.decision.decision === 'deny',
+      ),
+    ).toBe(true);
     expect(screen.queryByTestId('approval-card')).toBeNull();
     expect(screen.getByTestId('pending-count').textContent).toBe('0');
     vi.unstubAllGlobals();

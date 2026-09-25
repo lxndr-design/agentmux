@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentEventEnvelope } from '@agentmux/protocol';
 import { createAgentEventEnvelope } from '@agentmux/protocol';
-import { deriveEnvelopeView, MAX_ENVELOPES, useSessionStore } from './sessionStore.js';
+import {
+  attachClient,
+  deriveEnvelopeView,
+  MAX_ENVELOPES,
+  useSessionStore,
+} from './sessionStore.js';
 
 type SessionView = NonNullable<ReturnType<typeof useSessionStore.getState>['sessions'][number]>;
 
@@ -98,6 +103,42 @@ describe('deriveEnvelopeView', () => {
     expect(resumed.state).toBe('working');
   });
 
+  it('records an approval_decision event and clears the matching card', () => {
+    const request = { requestId: 'r1', tool: 'Bash', risk: 'high' as const, command: 'dd' };
+    const blocked = deriveEnvelopeView(mustSession(), {
+      ...envelope(0, { kind: 'state_change', from: 'working', to: 'waiting-approval', request }),
+    });
+    const resolved = deriveEnvelopeView(blocked, {
+      ...envelope(1, {
+        kind: 'approval_decision',
+        requestId: 'r1',
+        decision: 'deny',
+        actor: 'human',
+        reason: 'no',
+      }),
+    });
+    expect(resolved.pendingApproval).toBeNull();
+    expect(resolved.lastDecision).toEqual({ requestId: 'r1', decision: 'deny' });
+    expect(resolved.state).toBe('waiting-approval'); // the session event decides the state, not the decision
+  });
+
+  it('keeps a non-matching pending card when a decision event names a different request', () => {
+    const request = { requestId: 'r1', tool: 'Bash', risk: 'high' as const, command: 'dd' };
+    const blocked = deriveEnvelopeView(mustSession(), {
+      ...envelope(0, { kind: 'state_change', from: 'working', to: 'waiting-approval', request }),
+    });
+    const resolved = deriveEnvelopeView(blocked, {
+      ...envelope(1, {
+        kind: 'approval_decision',
+        requestId: 'other',
+        decision: 'approve',
+        actor: 'policy',
+      }),
+    });
+    expect(resolved.pendingApproval?.requestId).toBe('r1');
+    expect(resolved.lastDecision).toEqual({ requestId: 'other', decision: 'approve' });
+  });
+
   it('records exit info on a terminal transition', () => {
     const session = mustSession();
     const next = deriveEnvelopeView(session, {
@@ -125,36 +166,94 @@ describe('deriveEnvelopeView', () => {
 });
 
 describe('decide', () => {
-  it('clears the pending card, records the decision, and posts to the control path', async () => {
+  /** Minimal WebSocket stand-in — records sent frames, reports OPEN. */
+  class FakeWebSocket {
+    static OPEN = 1;
+    static instances: FakeWebSocket[] = [];
+    readyState = FakeWebSocket.OPEN;
+    sent: string[] = [];
+    onopen: (() => void) | null = null;
+    onmessage: ((event: { data: unknown }) => void) | null = null;
+    onerror: (() => void) | null = null;
+    onclose: (() => void) | null = null;
+    constructor(public url: string) {
+      FakeWebSocket.instances.push(this);
+    }
+    send(data: string): void {
+      this.sent.push(data);
+    }
+    close(): void {
+      /* no-op — the client's stop() handles phase */
+    }
+  }
+
+  function stubSocket(): void {
+    FakeWebSocket.instances.length = 0;
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+  }
+
+  it('clears the pending card, records the decision, and sends the WS decide frame', () => {
+    stubSocket();
     const { session, request } = sessionWithPendingApproval();
-    const fetchMock = vi.fn(
-      async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
-    );
-    vi.stubGlobal('fetch', fetchMock);
+    attachClient(session.id, 'ws://127.0.0.1:8787');
 
     useSessionStore.getState().decide(session.id, request.requestId, 'deny');
 
     const after = mustSession();
     expect(after.pendingApproval).toBeNull();
     expect(after.lastDecision).toEqual({ requestId: 'r1', decision: 'deny' });
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining(`/demo/sessions/${session.id}/decision`),
-      expect.objectContaining({ method: 'POST' }),
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) throw new Error('expected an attached socket');
+    const frames = socket.sent.map(
+      (data) => JSON.parse(data) as { type: string; decision?: { requestId?: string } },
     );
+    expect(
+      frames.some((frame) => frame.type === 'decide' && frame.decision?.requestId === 'r1'),
+    ).toBe(true);
     vi.unstubAllGlobals();
   });
 
+  it('keeps the card pending and surfaces an error when the stream is not connected', () => {
+    const orphan: SessionView = {
+      ...mustSession(),
+      id: 'no-stream',
+      name: 'agent-9',
+      pendingApproval: {
+        requestId: 'r9',
+        tool: 'Bash',
+        risk: 'high',
+        command: 'dd if=/dev/zero of=/dev/sda',
+      },
+      lastDecision: null,
+    };
+    useSessionStore.setState({ sessions: [...useSessionStore.getState().sessions, orphan] });
+
+    useSessionStore.getState().decide('no-stream', 'r9', 'deny');
+
+    const after = useSessionStore
+      .getState()
+      .sessions.find((candidate) => candidate.id === 'no-stream');
+    if (after === undefined) throw new Error('expected the orphan session');
+    expect(after.pendingApproval).not.toBeNull();
+    expect(after.lastDecision).toBeNull();
+    expect(after.streamError).toMatch(/not connected/);
+  });
+
   it('ignores decisions for an unknown request id', () => {
+    stubSocket();
     const { session } = sessionWithPendingApproval();
-    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
-    vi.stubGlobal('fetch', fetchMock);
+    attachClient(session.id, 'ws://127.0.0.1:8787');
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) throw new Error('expected an attached socket');
+    socket.onopen?.(); // complete the handshake — the subscribe frame goes out
+    const before = socket.sent.length;
 
     useSessionStore.getState().decide(session.id, 'nope', 'approve');
 
     const after = mustSession();
     expect(after.pendingApproval).not.toBeNull();
     expect(after.lastDecision).toBeNull();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(socket.sent.length).toBe(before); // no decide frame followed
     vi.unstubAllGlobals();
   });
 });

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   agentEventEnvelopeSchema,
+  approvalDecisionSchema,
   fsErrorSchema,
   fsRequestSchema,
   fsResultSchema,
@@ -11,10 +12,10 @@ import {
  *
  * The mirror exists because @agentmux/daemon is a Node-only package
  * (better-sqlite3, ws), so the browser cannot import it at runtime, and the
- * wire schema belongs to the daemon while the connector PR is still in
+ * wire schema belongs to the daemon while the approval-engine PR is still in
  * flight. Hoisting these schemas into @agentmux/protocol is the follow-up
- * once the approval-decision messages land; until then, wsClient.test.ts
- * pins this mirror to the real daemon, so drift fails CI instead of the UI.
+ * once both sides stabilize; until then, wsClient.test.ts pins this mirror to
+ * the real daemon, so drift fails CI instead of the UI.
  */
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
@@ -26,6 +27,11 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
      * gap. Omitted means "I have seen nothing" — full replay from seq 0.
      */
     fromSeq: z.number().int().nonnegative().optional(),
+  }),
+  z.object({
+    type: z.literal('decide'),
+    sessionId: z.string().min(1),
+    decision: approvalDecisionSchema,
   }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
