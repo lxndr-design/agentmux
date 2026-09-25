@@ -4,6 +4,7 @@ import type { AgentEvent, AgentEventEnvelope } from '@agentmux/protocol';
 import { resolveDaemonOptions, type DaemonOptions, type ResolvedDaemonOptions } from './config.js';
 import { Gateway } from './gateway.js';
 import { EventJournal } from './journal.js';
+import { ApprovalEngine } from './approval/approvalEngine.js';
 
 export interface DaemonHandle {
   /** Resolved boot options — the host is loopback by construction. */
@@ -12,6 +13,12 @@ export interface DaemonHandle {
   readonly token: string;
   /** The daemon's state of record. */
   readonly journal: EventJournal;
+  /**
+   * The approval engine: policy evaluation, escalation, and the WS decision
+   * round-trip into connector stdin. Connector sessions and the demo harness
+   * register themselves here (attachSession / setPolicy).
+   */
+  readonly approvals: ApprovalEngine;
   /** Journals the event (assigning the next seq) and fans it out. */
   ingest(sessionId: string, event: AgentEvent): AgentEventEnvelope;
   /** The actually-bound address — a port-0 boot resolves here. */
@@ -31,6 +38,12 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
   const journal = new EventJournal(resolved.journalPath);
   const token = randomBytes(32).toString('base64url');
   const gateway = new Gateway({ journal, token });
+  const approvals = new ApprovalEngine({
+    journal,
+    broadcast: (envelope) => gateway.broadcast(envelope),
+    timeoutMs: resolved.approvalTimeoutMs,
+  });
+  gateway.onDecision = (sessionId, decision) => approvals.resolve(sessionId, decision, 'human');
 
   const server = createServer((_request, response) => {
     response.writeHead(404, { 'content-type': 'text/plain' });
@@ -54,12 +67,13 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     options: resolved,
     token,
     journal,
+    approvals,
     ingest(sessionId, event) {
       // Journal first, fan out second — nothing observable may be missing
-      // from the state of record (blueprint: "Sequencing and replay").
-      const envelope = journal.append(sessionId, event);
-      gateway.broadcast(envelope);
-      return envelope;
+      // from the state of record (blueprint: "Sequencing and replay"). The
+      // approval engine owns the path so requests are policy-evaluated and
+      // decisions journal before anything fans out.
+      return approvals.ingest(sessionId, event);
     },
     address() {
       const bound = server.address();

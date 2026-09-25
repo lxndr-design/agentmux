@@ -6,12 +6,7 @@ import type {
   SessionState,
 } from '@agentmux/protocol';
 import { create } from 'zustand';
-import {
-  fetchDemoConfig,
-  sendDemoDecision,
-  startDemoSession,
-  stopDemoSession,
-} from '../demo/demoClient.js';
+import { fetchDemoConfig, startDemoSession, stopDemoSession } from '../demo/demoClient.js';
 import { WsSessionClient, type StreamPhase } from '../ws/wsClient.js';
 
 /** Envelope cap per session — the timeline renders a window; this bounds memory. */
@@ -56,7 +51,12 @@ interface SessionStoreActions {
   setActive(sessionId: string): void;
   toggleColumn(): void;
   toggleTranscript(sessionId: string): void;
-  decide(sessionId: string, requestId: string, decision: ApprovalDecision['decision']): void;
+  decide(
+    sessionId: string,
+    requestId: string,
+    decision: ApprovalDecision['decision'],
+    reason?: string,
+  ): void;
   applyEnvelope(sessionId: string, envelope: AgentEventEnvelope): void;
   setPhase(sessionId: string, phase: StreamPhase): void;
   setStreamError(sessionId: string, message: string | null): void;
@@ -91,14 +91,22 @@ export function deriveEnvelopeView(
   envelope: AgentEventEnvelope,
 ): SessionView {
   const envelopes = [...session.envelopes, envelope].slice(-MAX_ENVELOPES);
-  let { state, exit, pendingApproval } = session;
+  let { state, exit, pendingApproval, lastDecision } = session;
   const payload = envelope.payload;
   if (payload.kind === 'state_change') {
     state = payload.to;
     exit = payload.exit ?? null;
     pendingApproval = payload.to === 'waiting-approval' ? (payload.request ?? null) : null;
+  } else if (payload.kind === 'approval_decision') {
+    // Authoritative resolution from the journal — our own optimistic echo, a
+    // decision made in another window, or a policy/timeout auto-decision.
+    // Clears the matching card only, never a different pending request.
+    lastDecision = { requestId: payload.requestId, decision: payload.decision };
+    if (pendingApproval?.requestId === payload.requestId) {
+      pendingApproval = null;
+    }
   }
-  return { ...session, envelopes, state, exit, pendingApproval };
+  return { ...session, envelopes, state, exit, pendingApproval, lastDecision };
 }
 
 function emptySession(id: string, name: string): SessionView {
@@ -185,9 +193,25 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }));
   },
 
-  decide(sessionId, requestId, decision) {
+  decide(sessionId, requestId, decision, reason) {
     const session = findSession(get(), sessionId);
     if (session === undefined || session.pendingApproval?.requestId !== requestId) return;
+    // One path for every decision — the daemon WS round-trip, demo or real
+    // connector alike (the harness registers a session handle; the connector
+    // writes stdin). Unsent means the card stays pending for another try.
+    const trimmed = reason?.trim();
+    const sent =
+      clients.get(sessionId)?.sendDecision({
+        requestId,
+        decision,
+        ...(trimmed !== undefined && trimmed !== '' && { reason: trimmed }),
+      }) ?? false;
+    if (!sent) {
+      get().setStreamError(sessionId, 'decision not sent — the session stream is not connected');
+      return;
+    }
+    // Optimistic clear; the journaled approval_decision event re-derives the
+    // same view authoritatively (replay, resync, or another window).
     set((state) => ({
       sessions: patchSession(state, sessionId, (current) => ({
         ...current,
@@ -195,14 +219,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         lastDecision: { requestId, decision },
       })),
     }));
-    if (get().demoAvailable) {
-      // The decision re-enters the agent via the harness control path; the
-      // connector PR replaces this with the stdin round-trip.
-      void sendDemoDecision(sessionId, { requestId, decision }).catch((error) => {
-        console.error('decision delivery failed', error);
-        get().setStreamError(sessionId, 'decision delivery failed — is the demo harness running?');
-      });
-    }
   },
 
   applyEnvelope(sessionId, envelope) {
@@ -232,7 +248,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 }));
 
-function attachClient(sessionId: string, daemonUrl: string): void {
+/**
+ * Attaches (or re-attaches) a session's WS stream. Exported for tests — the
+ * production flow attaches from `startSession`; tests stub the global
+ * WebSocket and call this to exercise decisions through the real client.
+ */
+export function attachClient(sessionId: string, daemonUrl: string): void {
   clients.get(sessionId)?.stop();
   const store = useSessionStore;
   const { daemonToken } = store.getState();

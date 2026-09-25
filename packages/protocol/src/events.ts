@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { approvalRequestSchema } from './approval.js';
+import { approvalDecisionSchema, approvalRequestSchema } from './approval.js';
 import { exitInfoSchema, sessionStateSchema } from './session.js';
 
 /**
@@ -81,6 +81,20 @@ const stateChangeEventSchema = z
     message: 'exit info may only ride a transition into a terminal state',
   });
 
+const approvalDecisionEventSchema = z.object({
+  kind: z.literal('approval_decision'),
+  /** The requestId of the resolved approval — joins the request's journal trail. */
+  requestId: z.string().min(1),
+  decision: approvalDecisionSchema.shape.decision,
+  /** Who resolved it — the audit trail separates human calls from host policy. */
+  actor: z.enum(['human', 'policy', 'timeout']),
+  /**
+   * Denial reason (or grant scope note for approve-for-session). Also carried
+   * on the journaled event so the feed is auditable after the fact.
+   */
+  reason: z.string().optional(),
+});
+
 export const agentEventSchema = z.discriminatedUnion('kind', [
   turnEventSchema,
   thinkingEventSchema,
@@ -88,6 +102,7 @@ export const agentEventSchema = z.discriminatedUnion('kind', [
   toolResultEventSchema,
   usageEventSchema,
   stateChangeEventSchema,
+  approvalDecisionEventSchema,
 ]);
 export type AgentEvent = z.infer<typeof agentEventSchema>;
 export type AgentEventKind = AgentEvent['kind'];

@@ -65,3 +65,62 @@ describe('serverMessageSchema', () => {
     ).toThrowError();
   });
 });
+
+describe('clientMessageSchema — decide', () => {
+  it('accepts a schema-valid decision, with and without a reason', () => {
+    expect(
+      clientMessageSchema.parse({
+        type: 'decide',
+        sessionId: 'sess-1',
+        decision: { requestId: 'req_1', decision: 'approve' },
+      }),
+    ).toEqual({
+      type: 'decide',
+      sessionId: 'sess-1',
+      decision: { requestId: 'req_1', decision: 'approve' },
+    });
+    expect(
+      clientMessageSchema.parse({
+        type: 'decide',
+        sessionId: 'sess-1',
+        decision: { requestId: 'req_1', decision: 'deny', reason: 'not today' },
+      }).decision,
+    ).toEqual({ requestId: 'req_1', decision: 'deny', reason: 'not today' });
+  });
+
+  it('accepts every decision verb the column can send', () => {
+    for (const decision of ['approve', 'approve-for-session', 'deny'] as const) {
+      expect(
+        clientMessageSchema.parse({
+          type: 'decide',
+          sessionId: 'sess-1',
+          decision: { requestId: 'req_1', decision },
+        }).decision,
+      ).toEqual({ requestId: 'req_1', decision });
+    }
+  });
+
+  it('rejects malformed decisions — a bad verb or request id never reaches the engine', () => {
+    expect(() =>
+      clientMessageSchema.parse({
+        type: 'decide',
+        sessionId: 'sess-1',
+        decision: { requestId: 'req_1', decision: 'yes-please' },
+      }),
+    ).toThrowError();
+    expect(() =>
+      clientMessageSchema.parse({
+        type: 'decide',
+        sessionId: 'sess-1',
+        decision: { decision: 'approve' },
+      }),
+    ).toThrowError();
+    expect(() =>
+      clientMessageSchema.parse({
+        type: 'decide',
+        sessionId: '',
+        decision: { requestId: 'req_1', decision: 'approve' },
+      }),
+    ).toThrowError();
+  });
+});

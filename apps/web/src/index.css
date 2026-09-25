@@ -291,6 +291,44 @@ body {
   border-color: var(--danger);
 }
 
+.approval-deny-reason {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.approval-deny-reason input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-hover);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.78rem;
+}
+
+.approval-deny-reason input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.approval-deny-reason button {
+  background: var(--bg-hover);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.approval-deny-reason button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ---- Dock host + panes ---- */
 
 .dock-host {
