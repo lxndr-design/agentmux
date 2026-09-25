@@ -22,7 +22,8 @@ export const WORKTREE_DIR = '.agentmux/worktrees';
 /** The exclude entry keeping the main checkout's `git status` free of worktree noise. */
 const EXCLUDE_LINE = '.agentmux/';
 
-const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+/** Session-id shape — shared with the FS bridge, which keys session roots by it. */
+export const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const BRANCH_PREFIX = 'agentmux/';
 /** A hung `git worktree add` means git itself is wedged — fail rather than hang the daemon. */
 const GIT_TIMEOUT_MS = 30_000;

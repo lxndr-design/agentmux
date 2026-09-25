@@ -12,6 +12,10 @@
   },
   "dependencies": {
     "@agentmux/protocol": "0.0.0",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "codemirror": "^6.0.2",
+    "diff": "^9.0.0",
     "dockview-react": "^8.3.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

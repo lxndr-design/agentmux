@@ -19,6 +19,11 @@ export interface DaemonOptions {
   host?: string;
   /** SQLite journal file; ':memory:' keeps everything in-process. */
   journalPath?: string;
+  /**
+   * The workspace the FS bridge and worktrees live under. Defaults to the
+   * process cwd — the checkout agentmux itself runs from.
+   */
+  workspaceRoot?: string;
 }
 
 export type ResolvedDaemonOptions = Required<DaemonOptions>;
@@ -34,5 +39,6 @@ export function resolveDaemonOptions(options: DaemonOptions = {}): ResolvedDaemo
     port: options.port ?? DAEMON_DEFAULT_PORT,
     host: host === 'localhost' ? DAEMON_DEFAULT_HOST : host,
     journalPath: options.journalPath ?? ':memory:',
+    workspaceRoot: options.workspaceRoot ?? process.cwd(),
   };
 }

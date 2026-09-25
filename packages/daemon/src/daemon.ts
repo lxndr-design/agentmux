@@ -2,8 +2,10 @@ import { randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AgentEvent, AgentEventEnvelope } from '@agentmux/protocol';
 import { resolveDaemonOptions, type DaemonOptions, type ResolvedDaemonOptions } from './config.js';
+import { FsBridge } from './fs-bridge.js';
 import { Gateway } from './gateway.js';
 import { EventJournal } from './journal.js';
+import { WorktreeManager } from './worktree.js';
 
 export interface DaemonHandle {
   /** Resolved boot options — the host is loopback by construction. */
@@ -12,11 +14,15 @@ export interface DaemonHandle {
   readonly token: string;
   /** The daemon's state of record. */
   readonly journal: EventJournal;
+  /** The sandboxed filesystem bridge serving file RPC. */
+  readonly fs: FsBridge;
+  /** Per-session worktree lifecycle (create/remove/gc/reconcile). */
+  readonly worktrees: WorktreeManager;
   /** Journals the event (assigning the next seq) and fans it out. */
   ingest(sessionId: string, event: AgentEvent): AgentEventEnvelope;
   /** The actually-bound address — a port-0 boot resolves here. */
   address(): { host: string; port: number };
-  /** Closes the WS server, the HTTP server, and the journal. */
+  /** Closes the WS server, the HTTP server, the bridge watcher, and the journal. */
   close(): Promise<void>;
 }
 
@@ -30,7 +36,11 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
   const resolved = resolveDaemonOptions(options);
   const journal = new EventJournal(resolved.journalPath);
   const token = randomBytes(32).toString('base64url');
-  const gateway = new Gateway({ journal, token });
+  const fsBridge = new FsBridge({ workspaceRoot: resolved.workspaceRoot });
+  const worktrees = new WorktreeManager({ workspaceRoot: resolved.workspaceRoot });
+  const gateway = new Gateway({ journal, token, fsBridge });
+  // The bridge watches the workspace; every connection sees the change feed.
+  const stopChangeRelay = fsBridge.onChange((event) => gateway.broadcastFsChange(event));
 
   const server = createServer((_request, response) => {
     response.writeHead(404, { 'content-type': 'text/plain' });
@@ -54,6 +64,8 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     options: resolved,
     token,
     journal,
+    fs: fsBridge,
+    worktrees,
     ingest(sessionId, event) {
       // Journal first, fan out second — nothing observable may be missing
       // from the state of record (blueprint: "Sequencing and replay").
@@ -68,11 +80,19 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
       }
       return { host: bound.address, port: bound.port };
     },
-    close: () => closeDaemon(server, gateway, journal),
+    close: () => closeDaemon(server, gateway, journal, fsBridge, stopChangeRelay),
   };
 }
 
-async function closeDaemon(server: Server, gateway: Gateway, journal: EventJournal): Promise<void> {
+async function closeDaemon(
+  server: Server,
+  gateway: Gateway,
+  journal: EventJournal,
+  fsBridge: FsBridge,
+  stopChangeRelay: () => void,
+): Promise<void> {
+  stopChangeRelay();
+  fsBridge.close();
   await gateway.close();
   await new Promise<void>((resolve, reject) => {
     // Closing twice is a no-op, not an error — teardown paths and the
