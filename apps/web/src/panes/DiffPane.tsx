@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { diffLines } from 'diff';
+import { diffArrays } from 'diff';
 import { useFilesStore, fileDiffPair } from '../state/filesStore.js';
 
 /**
@@ -14,15 +14,18 @@ interface DiffRow {
   text: string;
 }
 
-function diffRows(before: string, after: string): DiffRow[] {
+/** Line-atom diff — rows are always whole lines, never character fragments. */
+export function diffRows(before: string, after: string): DiffRow[] {
   const rows: DiffRow[] = [];
-  for (const change of diffLines(before, after)) {
-    const lines = change.value.split('\n');
-    if (lines.length > 0 && lines[lines.length - 1] === '') {
-      lines.pop(); // trailing-newline artifact of change.value
-    }
+  // A trailing newline splits into an empty final element that is not a real
+  // line; drop exactly that one from each side.
+  const beforeLines = before.split('\n');
+  if (beforeLines.length > 1 && beforeLines[beforeLines.length - 1] === '') beforeLines.pop();
+  const afterLines = after.split('\n');
+  if (afterLines.length > 1 && afterLines[afterLines.length - 1] === '') afterLines.pop();
+  for (const change of diffArrays(beforeLines, afterLines)) {
     const kind: DiffRow['kind'] = change.added ? 'add' : change.removed ? 'del' : 'context';
-    for (const text of lines) {
+    for (const text of change.value as string[]) {
       rows.push({ kind, text });
     }
   }
@@ -30,7 +33,11 @@ function diffRows(before: string, after: string): DiffRow[] {
 }
 
 export function DiffPane() {
-  const pair = useFilesStore(fileDiffPair);
+  const file = useFilesStore((state) => state.file);
+  // Derived in render from a stable selector — the store's snapshot contract
+  // forbids selectors that allocate a fresh object per call (React would
+  // force-render forever, #185).
+  const pair = useMemo(() => fileDiffPair(file), [file]);
 
   const rows = useMemo(() => (pair === null ? null : diffRows(pair.before, pair.after)), [pair]);
   const added = rows === null ? 0 : rows.filter((row) => row.kind === 'add').length;
@@ -68,7 +75,7 @@ export function DiffPane() {
               <span className="diff__sign">
                 {row.kind === 'add' ? '+' : row.kind === 'del' ? '−' : ' '}
               </span>
-              <span className="diff__text">{row.text.slice(1)}</span>
+              <span className="diff__text">{row.text}</span>
             </div>
           ))}
         </div>

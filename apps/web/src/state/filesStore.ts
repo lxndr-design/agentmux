@@ -244,8 +244,8 @@ export function fileIsDirty(state: FilesStore): boolean {
 }
 
 /** Derived: the diff pair for DiffPane — what changed on disk through the bridge. */
-export function fileDiffPair(state: FilesStore): { before: string; after: string } | null {
-  const file = state.file;
+/** The diff pair a save produces — pure over the open file for testability. */
+export function fileDiffPair(file: OpenFile | null): { before: string; after: string } | null {
   if (file === null) return null;
   return { before: file.original, after: file.saved };
 }

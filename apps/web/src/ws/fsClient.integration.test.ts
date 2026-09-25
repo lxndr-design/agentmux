@@ -45,7 +45,22 @@ async function tempGitWorkspace(): Promise<string> {
   await writeFile(join(workspaceRoot, 'README.md'), 'hello\n');
   await execFile('git', ['init', '-q', '-b', 'main'], { cwd: workspaceRoot });
   await execFile('git', ['add', '.'], { cwd: workspaceRoot });
-  await execFile('git', ['commit', '-q', '-m', 'init'], { cwd: workspaceRoot });
+  // Same reason as the daemon fixtures: CI has no global git identity, so the
+  // commit must carry one explicitly.
+  await execFile(
+    'git',
+    [
+      '-c',
+      'user.name=agentmux-test',
+      '-c',
+      'user.email=test@agentmux.local',
+      'commit',
+      '-q',
+      '-m',
+      'init',
+    ],
+    { cwd: workspaceRoot },
+  );
   return workspaceRoot;
 }
 
@@ -90,7 +105,7 @@ describe('file flow against the real daemon', () => {
     expect(await readFile(join(workspaceRoot, 'README.md'), 'utf8')).toBe(
       'hello\nedited through the bridge\n',
     );
-    expect(fileDiffPair(useFilesStore.getState())).toEqual({
+    expect(fileDiffPair(useFilesStore.getState().file)).toEqual({
       before: 'hello\n',
       after: 'hello\nedited through the bridge\n',
     });

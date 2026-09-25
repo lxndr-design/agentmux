@@ -108,7 +108,7 @@ describe('file-flow store', () => {
       { op: 'write', root: 'workspace', path: 'README.md', content: 'hello\nedited\n' },
     ]);
 
-    const pair = fileDiffPair(useFilesStore.getState());
+    const pair = fileDiffPair(useFilesStore.getState().file);
     expect(pair).toEqual({ before: 'hello\n', after: 'hello\nedited\n' });
     expect(fileIsDirty(useFilesStore.getState())).toBe(false);
   });

@@ -34,7 +34,20 @@ async function tempGitWorkspace(): Promise<string> {
   await writeFile(join(workspaceRoot, 'README.md'), 'hello\n');
   await execFile('git', ['init', '-q', '-b', 'main'], { cwd: workspaceRoot });
   await execFile('git', ['add', '.'], { cwd: workspaceRoot });
-  await execFile('git', ['-c', 'user.name=agentmux-test', '-c', 'user.email=test@agentmux.local', 'commit', '-q', '-m', 'init'], { cwd: workspaceRoot });
+  await execFile(
+    'git',
+    [
+      '-c',
+      'user.name=agentmux-test',
+      '-c',
+      'user.email=test@agentmux.local',
+      'commit',
+      '-q',
+      '-m',
+      'init',
+    ],
+    { cwd: workspaceRoot },
+  );
   return workspaceRoot;
 }
 
