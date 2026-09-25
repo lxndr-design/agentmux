@@ -45,13 +45,7 @@ import { SESSION_ID_PATTERN, WORKTREE_DIR } from './worktree.js';
  */
 
 export type FsBridgeErrorCode =
-  | 'E_SANDBOX'
-  | 'E_NOT_FOUND'
-  | 'E_EXISTS'
-  | 'E_IS_DIR'
-  | 'E_NOT_DIR'
-  | 'E_RANGE'
-  | 'E_IO';
+  'E_SANDBOX' | 'E_NOT_FOUND' | 'E_EXISTS' | 'E_IS_DIR' | 'E_NOT_DIR' | 'E_RANGE' | 'E_IO';
 
 export class FsBridgeError extends Error {
   constructor(
@@ -102,9 +96,7 @@ export function lexicallyInside(root: string, candidate: string): boolean {
  * path lives inside a managed worktree. Lets consumers address change events
  * with the same root ids the bridge serves.
  */
-export function splitSessionPath(
-  relPath: string,
-): { sessionId: string; path: string } | undefined {
+export function splitSessionPath(relPath: string): { sessionId: string; path: string } | undefined {
   const prefix = WORKTREE_DIR + path.sep;
   if (!relPath.startsWith(prefix)) {
     return undefined;
@@ -242,7 +234,10 @@ export class FsBridge {
    */
   async write(rootId: FsRoot, relPath: string, content: string): Promise<FsWriteResult> {
     if (content.length > MAX_TRANSFER_BYTES) {
-      throw new FsBridgeError('E_RANGE', `write exceeds the ${MAX_TRANSFER_BYTES}-byte bridge limit`);
+      throw new FsBridgeError(
+        'E_RANGE',
+        `write exceeds the ${MAX_TRANSFER_BYTES}-byte bridge limit`,
+      );
     }
     const { abs, realRoot } = await this.contain(rootId, relPath, { forWrite: true });
     // Sibling temp file: same directory guarantees the same filesystem, so
@@ -504,7 +499,10 @@ export class FsBridge {
    * the root is still rejected; a symlink's own metadata cannot leak
    * anything it does not already display.
    */
-  private async containLexical(rootId: FsRoot, relPath: string): Promise<{ abs: string; realRoot: string }> {
+  private async containLexical(
+    rootId: FsRoot,
+    relPath: string,
+  ): Promise<{ abs: string; realRoot: string }> {
     const rootAbs = await this.resolveRoot(rootId);
     const abs = path.resolve(rootAbs, relPath);
     if (!lexicallyInside(rootAbs, abs)) {

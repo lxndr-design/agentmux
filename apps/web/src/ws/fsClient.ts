@@ -184,5 +184,4 @@ export class FsClient {
 }
 
 type PendingResponse =
-  | { ok: true; result: FsResult }
-  | { ok: false; error: FsBridgeRpcError | FsUnavailableError };
+  { ok: true; result: FsResult } | { ok: false; error: FsBridgeRpcError | FsUnavailableError };

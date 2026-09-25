@@ -116,9 +116,9 @@ describe('sandbox containment', () => {
 
   it('rejects `..` traversal on write and creates nothing outside', async () => {
     const outsidePath = path.join(path.dirname(workspaceRoot), 'planted.txt');
-    await expect(
-      bridge.write('workspace', '../planted.txt', 'pwned'),
-    ).rejects.toMatchObject({ code: 'E_SANDBOX' });
+    await expect(bridge.write('workspace', '../planted.txt', 'pwned')).rejects.toMatchObject({
+      code: 'E_SANDBOX',
+    });
     await expect(fs.stat(outsidePath)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
@@ -152,9 +152,9 @@ describe('sandbox containment', () => {
       path.join(workspaceRoot, 'victim.txt'),
       path.join(workspaceRoot, 'alias-link'),
     );
-    await expect(
-      bridge.write('workspace', 'alias-link', 'tampered'),
-    ).rejects.toMatchObject({ code: 'E_SANDBOX' });
+    await expect(bridge.write('workspace', 'alias-link', 'tampered')).rejects.toMatchObject({
+      code: 'E_SANDBOX',
+    });
     await expect(fs.readFile(path.join(workspaceRoot, 'victim.txt'), 'utf8')).resolves.toBe(
       'original\n',
     );
@@ -163,23 +163,23 @@ describe('sandbox containment', () => {
   it('keeps session roots inside their own worktree — no sibling reach-through', async () => {
     const s1 = path.join(workspaceRoot, '.agentmux/worktrees/s-1');
     await fs.mkdir(s1, { recursive: true });
-    await expect(
-      bridge.read('session:s-1', '../s-2/secret.txt'),
-    ).rejects.toMatchObject({ code: 'E_SANDBOX' });
+    await expect(bridge.read('session:s-1', '../s-2/secret.txt')).rejects.toMatchObject({
+      code: 'E_SANDBOX',
+    });
   });
 
   it('rejects malformed session root ids at the bridge', async () => {
     for (const root of ['session:..', 'session:', 'session:../etc'] as FsRoot[]) {
-      await expect(
-        bridge.dispatch({ op: 'list', root, path: '.' } as never),
-      ).rejects.toMatchObject({ code: 'E_SANDBOX' });
+      await expect(bridge.dispatch({ op: 'list', root, path: '.' } as never)).rejects.toMatchObject(
+        { code: 'E_SANDBOX' },
+      );
     }
   });
 
   it('reports unknown session worktrees as not found', async () => {
-    await expect(
-      bridge.read('session:s-404', 'auth.ts'),
-    ).rejects.toMatchObject({ code: 'E_NOT_FOUND' });
+    await expect(bridge.read('session:s-404', 'auth.ts')).rejects.toMatchObject({
+      code: 'E_NOT_FOUND',
+    });
   });
 
   it('serves files inside a session worktree when addressed through it', async () => {
@@ -210,25 +210,19 @@ describe('atomic writes', () => {
 
   it('concurrent writes to one path always leave a whole file', async () => {
     const payloads = Array.from({ length: 8 }, (_, i) => `payload-${i}-${'#'.repeat(2000)}\n`);
-    await Promise.all(
-      payloads.map((p) => bridge.write('workspace', 'concurrent.txt', p)),
-    );
+    await Promise.all(payloads.map((p) => bridge.write('workspace', 'concurrent.txt', p)));
     const final = await fs.readFile(path.join(workspaceRoot, 'concurrent.txt'), 'utf8');
     expect(payloads).toContain(final); // never interleaved, never partial
-    const leftovers = (await fs.readdir(workspaceRoot)).filter((n) =>
-      n.includes('.amx-tmp-'),
-    );
+    const leftovers = (await fs.readdir(workspaceRoot)).filter((n) => n.includes('.amx-tmp-'));
     expect(leftovers).toEqual([]);
   });
 
   it('a failed write leaves no temp file behind', async () => {
     await fs.writeFile(path.join(workspaceRoot, 'blocker'), 'a file, not a dir\n');
-    await expect(
-      bridge.write('workspace', 'blocker/inner.txt', 'nope'),
-    ).rejects.toMatchObject({ code: 'E_IO' });
-    const leftovers = (await fs.readdir(workspaceRoot)).filter((n) =>
-      n.includes('.amx-tmp-'),
-    );
+    await expect(bridge.write('workspace', 'blocker/inner.txt', 'nope')).rejects.toMatchObject({
+      code: 'E_IO',
+    });
+    const leftovers = (await fs.readdir(workspaceRoot)).filter((n) => n.includes('.amx-tmp-'));
     expect(leftovers).toEqual([]);
   });
 });
@@ -282,7 +276,9 @@ describe('file operations', () => {
   it('mkdir is idempotent and mkdir over a file conflicts', async () => {
     await expect(bridge.mkdir('workspace', 'src')).resolves.toBe('src');
     await expect(bridge.mkdir('workspace', 'a/b/c')).resolves.toBe('a/b/c');
-    await expect(fs.stat(path.join(workspaceRoot, 'a/b/c')).then((s) => s.isDirectory())).resolves.toBe(true);
+    await expect(
+      fs.stat(path.join(workspaceRoot, 'a/b/c')).then((s) => s.isDirectory()),
+    ).resolves.toBe(true);
     await expect(bridge.mkdir('workspace', 'README.md')).rejects.toMatchObject({
       code: 'E_EXISTS',
     });
@@ -324,9 +320,7 @@ describe('file operations', () => {
 describe('search', () => {
   it('finds case-insensitive matches with line numbers', async () => {
     const matches = await bridge.search('workspace', 'token = "secret');
-    expect(matches).toEqual([
-      expect.objectContaining({ path: 'src/auth.ts', line: 1 }),
-    ]);
+    expect(matches).toEqual([expect.objectContaining({ path: 'src/auth.ts', line: 1 })]);
   });
 
   it('searches session worktrees independently of the workspace', async () => {
@@ -347,10 +341,7 @@ describe('search', () => {
 
   it('respects the match limit', async () => {
     for (let i = 0; i < 5; i += 1) {
-      await fs.writeFile(
-        path.join(workspaceRoot, `match-${i}.txt`),
-        'findme\n'.repeat(i + 1),
-      );
+      await fs.writeFile(path.join(workspaceRoot, `match-${i}.txt`), 'findme\n'.repeat(i + 1));
     }
     const matches = await bridge.search('workspace', 'findme', 3);
     expect(matches).toHaveLength(3);
@@ -366,7 +357,9 @@ describe('watcher', () => {
       // is suppressed by ignoreInitial, and under CI load that scan can lag.
       await new Promise((resolve) => setTimeout(resolve, 300));
       await fs.writeFile(path.join(workspaceRoot, 'watched.txt'), 'v1\n');
-      await waitForCondition(() => events.some((e) => e.path === 'watched.txt' && e.type === 'add'));
+      await waitForCondition(() =>
+        events.some((e) => e.path === 'watched.txt' && e.type === 'add'),
+      );
       await fs.writeFile(path.join(workspaceRoot, 'watched.txt'), 'v2\n');
       await waitForCondition(() =>
         events.some((e) => e.path === 'watched.txt' && e.type === 'change'),
@@ -388,31 +381,27 @@ describe('watcher', () => {
 
 /** The worktree manager drives the same layout the bridge keys session roots by. */
 describe('worktree integration', () => {
-  it(
-    'serves a created worktree as a session root',
-    { timeout: 60_000 },
-    async () => {
-      await execFile('git', ['init', '-b', 'main'], { cwd: workspaceRoot });
-      await execFile('git', ['config', 'user.email', 'test@agentmux.local'], {
-        cwd: workspaceRoot,
-      });
-      await execFile('git', ['config', 'user.name', 'agentmux test'], { cwd: workspaceRoot });
-      await execFile('git', ['add', '-A'], { cwd: workspaceRoot });
-      await execFile('git', ['commit', '-m', 'fixture'], { cwd: workspaceRoot });
-      const { WorktreeManager } = await import('./worktree.js');
-      const manager = new WorktreeManager({ workspaceRoot });
-      const sessionId = `it-${randomBytes(4).toString('hex')}`;
-      const info = await manager.create(sessionId);
-      await expect(
-        bridge.read(`session:${sessionId}` as FsRoot, 'src/auth.ts'),
-      ).resolves.toMatchObject({ path: 'src/auth.ts' });
-      await manager.remove(sessionId);
-      await expect(
-        bridge.read(`session:${sessionId}` as FsRoot, 'src/auth.ts'),
-      ).rejects.toMatchObject({ code: 'E_NOT_FOUND' });
-      expect(info.path).toContain(sessionId);
-    },
-  );
+  it('serves a created worktree as a session root', { timeout: 60_000 }, async () => {
+    await execFile('git', ['init', '-b', 'main'], { cwd: workspaceRoot });
+    await execFile('git', ['config', 'user.email', 'test@agentmux.local'], {
+      cwd: workspaceRoot,
+    });
+    await execFile('git', ['config', 'user.name', 'agentmux test'], { cwd: workspaceRoot });
+    await execFile('git', ['add', '-A'], { cwd: workspaceRoot });
+    await execFile('git', ['commit', '-m', 'fixture'], { cwd: workspaceRoot });
+    const { WorktreeManager } = await import('./worktree.js');
+    const manager = new WorktreeManager({ workspaceRoot });
+    const sessionId = `it-${randomBytes(4).toString('hex')}`;
+    const info = await manager.create(sessionId);
+    await expect(
+      bridge.read(`session:${sessionId}` as FsRoot, 'src/auth.ts'),
+    ).resolves.toMatchObject({ path: 'src/auth.ts' });
+    await manager.remove(sessionId);
+    await expect(
+      bridge.read(`session:${sessionId}` as FsRoot, 'src/auth.ts'),
+    ).rejects.toMatchObject({ code: 'E_NOT_FOUND' });
+    expect(info.path).toContain(sessionId);
+  });
 });
 
 async function waitForCondition(predicate: () => boolean, timeoutMs = 5000): Promise<void> {

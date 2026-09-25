@@ -95,12 +95,7 @@ export function EditorPane() {
         >
           {file?.saving === true ? 'saving…' : 'save'}
         </button>
-        <button
-          type="button"
-          className="editor__close"
-          aria-label="close file"
-          onClick={closeFile}
-        >
+        <button type="button" className="editor__close" aria-label="close file" onClick={closeFile}>
           ×
         </button>
       </div>

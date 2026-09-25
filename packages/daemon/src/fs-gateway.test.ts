@@ -162,10 +162,7 @@ describe('filesystem RPC over the gateway', () => {
     // A request the wire schema rejects never reaches the bridge; the
     // connection stays alive and answers with a protocol error message.
     client.request({ op: 'detonate' });
-    const unknownOp = await client.waitFor(
-      (message) => message.type === 'error',
-      'protocol error',
-    );
+    const unknownOp = await client.waitFor((message) => message.type === 'error', 'protocol error');
     expect(unknownOp.type).toBe('error');
   });
 

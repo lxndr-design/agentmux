@@ -107,28 +107,32 @@ describe('file flow against the real daemon', () => {
     expect(useFilesStore.getState().error).toContain('passwd');
   });
 
-  it('receives fs_change and flags the open file as externally changed', { timeout: 15_000 }, async () => {
-    const workspaceRoot = await tempGitWorkspace();
-    const bootInfo = await boot(workspaceRoot);
-    const client = getOrCreateFsClient(`ws://127.0.0.1:${bootInfo.port}`, bootInfo.token);
+  it(
+    'receives fs_change and flags the open file as externally changed',
+    { timeout: 15_000 },
+    async () => {
+      const workspaceRoot = await tempGitWorkspace();
+      const bootInfo = await boot(workspaceRoot);
+      const client = getOrCreateFsClient(`ws://127.0.0.1:${bootInfo.port}`, bootInfo.token);
 
-    await useFilesStore.getState().openFile(client, 'workspace', 'README.md');
-    useFilesStore.getState().editBuffer('local edit\n');
+      await useFilesStore.getState().openFile(client, 'workspace', 'README.md');
+      useFilesStore.getState().editBuffer('local edit\n');
 
-    // Wait out chokidar's initial scan, then write behind the editor.
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    await writeFile(join(workspaceRoot, 'README.md'), 'an agent wrote this\n');
+      // Wait out chokidar's initial scan, then write behind the editor.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await writeFile(join(workspaceRoot, 'README.md'), 'an agent wrote this\n');
 
-    // The FsClient's onFsChange wiring feeds the store; wait for the flag.
-    const deadline = Date.now() + 8_000;
-    while (Date.now() < deadline) {
-      if (useFilesStore.getState().file?.externalChanged === true) break;
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    expect(useFilesStore.getState().file?.externalChanged).toBe(true);
-    // The local buffer was not clobbered.
-    expect(useFilesStore.getState().file?.buffer).toBe('local edit\n');
-  });
+      // The FsClient's onFsChange wiring feeds the store; wait for the flag.
+      const deadline = Date.now() + 8_000;
+      while (Date.now() < deadline) {
+        if (useFilesStore.getState().file?.externalChanged === true) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      expect(useFilesStore.getState().file?.externalChanged).toBe(true);
+      // The local buffer was not clobbered.
+      expect(useFilesStore.getState().file?.buffer).toBe('local edit\n');
+    },
+  );
 
   it('lists and writes through a session worktree root', async () => {
     const workspaceRoot = await tempGitWorkspace();
