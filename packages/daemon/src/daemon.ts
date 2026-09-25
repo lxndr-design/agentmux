@@ -5,6 +5,7 @@ import { resolveDaemonOptions, type DaemonOptions, type ResolvedDaemonOptions } 
 import { FsBridge } from './fs-bridge.js';
 import { Gateway } from './gateway.js';
 import { EventJournal } from './journal.js';
+import { ApprovalEngine } from './approval/approvalEngine.js';
 import { ClaudeCodeConnector } from './connectors/claude-code/connector.js';
 import { CodexConnector } from './connectors/codex/connector.js';
 import type { AgentConnector } from './connectors/types.js';
@@ -26,6 +27,12 @@ export interface DaemonHandle {
   readonly worktrees: WorktreeManager;
   /** The supervisor: owns live agent sessions, kills, restarts, and the boot reap. */
   readonly supervisor: Supervisor;
+  /**
+   * The approval engine: policy evaluation, escalation, and the WS decision
+   * round-trip into connector stdin. Connector sessions and the demo harness
+   * register themselves here (attachSession / setPolicy).
+   */
+  readonly approvals: ApprovalEngine;
   /** Journals the event (assigning the next seq) and fans it out. */
   ingest(sessionId: string, event: AgentEvent): AgentEventEnvelope;
   /** The actually-bound address — a port-0 boot resolves here. */
@@ -50,13 +57,18 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
   // The bridge watches the workspace; every connection sees the change feed.
   const stopChangeRelay = fsBridge.onChange((event) => gateway.broadcastFsChange(event));
 
-  const ingest = (sessionId: string, event: AgentEvent): AgentEventEnvelope => {
-    // Journal first, fan out second — nothing observable may be missing
-    // from the state of record (blueprint: "Sequencing and replay").
-    const envelope = journal.append(sessionId, event);
-    gateway.broadcast(envelope);
-    return envelope;
-  };
+  // The approval engine owns the ingest path so requests are policy-evaluated
+  // and decisions journal before anything fans out; the supervisor's sessions
+  // and the gateway's decide path both route through it.
+  const approvals = new ApprovalEngine({
+    journal,
+    broadcast: (envelope) => gateway.broadcast(envelope),
+    timeoutMs: resolved.approvalTimeoutMs,
+  });
+  gateway.onDecision = (sessionId, decision) => approvals.resolve(sessionId, decision, 'human');
+
+  const ingest = (sessionId: string, event: AgentEvent): AgentEventEnvelope =>
+    approvals.ingest(sessionId, event);
 
   const registry = new ProcessRegistry(journal.database);
   const supervisor = new Supervisor({
@@ -109,7 +121,14 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     fs: fsBridge,
     worktrees,
     supervisor,
-    ingest,
+    approvals,
+    ingest(sessionId, event) {
+      // Journal first, fan out second — nothing observable may be missing
+      // from the state of record (blueprint: "Sequencing and replay"). The
+      // approval engine owns the path so requests are policy-evaluated and
+      // decisions journal before anything fans out.
+      return approvals.ingest(sessionId, event);
+    },
     address() {
       const bound = server.address();
       if (bound === null || typeof bound === 'string') {

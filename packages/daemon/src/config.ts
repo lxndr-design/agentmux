@@ -11,6 +11,8 @@ import { resolveRuntimeId, type RuntimeId } from './runtime.js';
 
 export const DAEMON_DEFAULT_PORT = 8787;
 export const DAEMON_DEFAULT_HOST = '127.0.0.1';
+/** Blueprint "Timeout": pending approval cards auto-deny after ten minutes. */
+export const DEFAULT_APPROVAL_TIMEOUT_MS = 600_000;
 
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['127.0.0.1', '::1', 'localhost']);
 
@@ -32,6 +34,11 @@ export interface DaemonOptions {
    * no-isolation trade-off. A session spec may still choose per session.
    */
   runtime?: RuntimeId;
+  /**
+   * Pending approval cards auto-deny after this window (blueprint: "Timeout",
+   * default 10 minutes); the agent receives the timeout as its denial reason.
+   */
+  approvalTimeoutMs?: number;
 }
 
 export type ResolvedDaemonOptions = Required<DaemonOptions>;
@@ -49,5 +56,6 @@ export function resolveDaemonOptions(options: DaemonOptions = {}): ResolvedDaemo
     journalPath: options.journalPath ?? ':memory:',
     workspaceRoot: options.workspaceRoot ?? process.cwd(),
     runtime: resolveRuntimeId(options.runtime),
+    approvalTimeoutMs: options.approvalTimeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS,
   };
 }
