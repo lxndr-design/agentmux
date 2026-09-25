@@ -215,3 +215,52 @@ describe('tombstone chrome', () => {
     expect(mustSession().transcriptOpen).toBe(false);
   });
 });
+
+describe('applyEnvelopes (batch)', () => {
+  it('applies a burst in journal order and dedupes inside the batch', () => {
+    useSessionStore.getState().applyEnvelopes('s1', [
+      envelope(0, { kind: 'thinking', text: 'a', done: false }),
+      envelope(1, { kind: 'thinking', text: 'b', done: true }),
+      envelope(1, { kind: 'thinking', text: 'b again', done: true }), // duplicate seq
+      envelope(2, { kind: 'turn', turnId: 't1', role: 'assistant', text: 'hi', done: true }),
+    ]);
+    const session = mustSession();
+    expect(session.envelopes.map((e) => e.seq)).toEqual([0, 1, 2]);
+    expect(session.envelopes[1]).toMatchObject({ payload: { text: 'b', done: true } });
+    expect(session.envelopes[2]).toMatchObject({ payload: { kind: 'turn' } });
+  });
+
+  it('produces exactly one store notification per batch', () => {
+    let notifications = 0;
+    const unsubscribe = useSessionStore.subscribe(() => {
+      notifications += 1;
+    });
+    try {
+      const burst = Array.from({ length: 50 }, (_, seq) =>
+        envelope(seq, { kind: 'thinking', text: 'x', done: false }),
+      );
+      useSessionStore.getState().applyEnvelopes('s1', burst);
+      expect(notifications).toBe(1);
+      expect(mustSession().envelopes).toHaveLength(50);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('PERF: a 500-envelope burst applies within the ~33 ms frame budget', { retry: 2 }, () => {
+    const burst = Array.from({ length: 500 }, (_, seq) =>
+      envelope(seq, {
+        kind: 'turn',
+        turnId: `t${Math.floor(seq / 10)}`,
+        role: 'assistant' as const,
+        text: 'chunk ',
+        done: seq % 10 === 9,
+      }),
+    );
+    const started = performance.now();
+    useSessionStore.getState().applyEnvelopes('s1', burst);
+    const elapsedMs = performance.now() - started;
+    expect(mustSession().envelopes).toHaveLength(500);
+    expect(elapsedMs).toBeLessThanOrEqual(33);
+  });
+});
