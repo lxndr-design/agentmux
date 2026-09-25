@@ -30,13 +30,15 @@ function gitIn(repo: string, args: string[]): Promise<string> {
   });
 }
 
-function tempRepo(): string {
+async function tempRepo(): Promise<string> {
   const repo = mkdtempSync(join(tmpdir(), 'agentmux-worktree-'));
   // A repo must have at least one commit before a worktree can branch from HEAD.
   writeFileSync(join(repo, 'README.md'), '# fixture\n');
-  gitIn(repo, ['init', '-q', '-b', 'main']);
-  gitIn(repo, ['add', '.']);
-  gitIn(repo, ['commit', '-q', '-m', 'init']);
+  // Awaited in order — git init/add/commit race otherwise (a commit that runs
+  // before add stages nothing, leaving a repo without HEAD).
+  await gitIn(repo, ['init', '-q', '-b', 'main']);
+  await gitIn(repo, ['add', '.']);
+  await gitIn(repo, ['commit', '-q', '-m', 'init']);
   return repo;
 }
 
@@ -58,8 +60,8 @@ function makeManager(repo: string): WorktreeManager {
   return manager;
 }
 
-beforeEach(() => {
-  repos.push(tempRepo());
+beforeEach(async () => {
+  repos.push(await tempRepo());
 });
 
 afterEach(async () => {
