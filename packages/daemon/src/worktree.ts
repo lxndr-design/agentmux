@@ -102,6 +102,11 @@ export class WorktreeManager {
     this.worktreeRoot = path.join(this.root, WORKTREE_DIR);
   }
 
+  /** The workspace root — where the main checkout and `.agentmux/` bookkeeping live. */
+  get workspaceRoot(): string {
+    return this.root;
+  }
+
   /**
    * Boot reconciliation (blueprint: "the host reconciles … reaps agent
    * orphans left by a previous run"). Worktrees registered under

@@ -113,10 +113,17 @@ export class CodexExecSession {
       cols: 120,
       rows: 40,
       cwd: this.config.cwd,
-      env: { ...process.env, CODEX_MANAGED_BY_NPM: 'agentmux' } as Record<string, string>,
+      env: {
+        ...process.env,
+        CODEX_MANAGED_BY_NPM: 'agentmux',
+        ...(this.config.env ?? {}),
+      } as Record<string, string>,
     });
     this.mapper.notifyTurnSent(text);
     this.turnPty = ptyProcess;
+    // The registry tracks the live turn's group so a crashed daemon's
+    // mid-turn orphan is reapable at the next boot (see orphan-reaper.ts).
+    this.config.onPidChange?.(ptyProcess.pid);
     const splitter = new LineSplitter((line) => this.mapper.consumeExecLine(line));
     ptyProcess.onData((chunk) => splitter.push(chunk));
     ptyProcess.onExit(({ exitCode, signal }) => {
@@ -124,6 +131,8 @@ export class CodexExecSession {
       // A turn's process boundary is the turn boundary — the session
       // container survives and stays ready for the next turn.
       this.mapper.notifyExecTurnEnded();
+      // Between turns there is no process group to reap.
+      this.config.onPidChange?.(0);
       if (this.killed) {
         this.settle({
           code: exitCode,

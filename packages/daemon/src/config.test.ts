@@ -8,6 +8,7 @@ describe('resolveDaemonOptions', () => {
       host: DAEMON_DEFAULT_HOST,
       journalPath: ':memory:',
       workspaceRoot: process.cwd(),
+      runtime: 'worktree',
     });
   });
 
@@ -18,13 +19,21 @@ describe('resolveDaemonOptions', () => {
         host: '::1',
         journalPath: 'journal.sqlite3',
         workspaceRoot: '/tmp/ws',
+        runtime: 'local',
       }),
     ).toEqual({
       port: 9000,
       host: '::1',
       journalPath: 'journal.sqlite3',
       workspaceRoot: '/tmp/ws',
+      runtime: 'local',
     });
+  });
+
+  it('refuses an unknown runtime at boot, with the v2 plan named', () => {
+    expect(() => resolveDaemonOptions({ runtime: 'ssh' as never })).toThrowError(
+      /SSH and Docker runtimes are planned for v2/,
+    );
   });
 
   it('normalizes localhost to the IPv4 loopback', () => {
