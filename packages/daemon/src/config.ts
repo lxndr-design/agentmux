@@ -7,6 +7,8 @@
  * instead of silently exposing agent sessions to the LAN.
  */
 
+import { resolveRuntimeId, type RuntimeId } from './runtime.js';
+
 export const DAEMON_DEFAULT_PORT = 8787;
 export const DAEMON_DEFAULT_HOST = '127.0.0.1';
 
@@ -24,6 +26,12 @@ export interface DaemonOptions {
    * process cwd — the checkout agentmux itself runs from.
    */
   workspaceRoot?: string;
+  /**
+   * The default runtime sessions provision in (blueprint: "Runtime
+   * abstraction"). `worktree` is the default; `local` is the explicit
+   * no-isolation trade-off. A session spec may still choose per session.
+   */
+  runtime?: RuntimeId;
 }
 
 export type ResolvedDaemonOptions = Required<DaemonOptions>;
@@ -40,5 +48,6 @@ export function resolveDaemonOptions(options: DaemonOptions = {}): ResolvedDaemo
     host: host === 'localhost' ? DAEMON_DEFAULT_HOST : host,
     journalPath: options.journalPath ?? ':memory:',
     workspaceRoot: options.workspaceRoot ?? process.cwd(),
+    runtime: resolveRuntimeId(options.runtime),
   };
 }

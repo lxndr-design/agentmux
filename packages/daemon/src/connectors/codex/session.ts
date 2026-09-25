@@ -102,8 +102,12 @@ export class CodexSession {
       cols: 120,
       rows: 40,
       cwd: config.cwd,
-      env,
+      env: {
+        ...env,
+        ...(config.env ?? {}),
+      } as Record<string, string>,
     });
+    config.onPidChange?.(ptyProcess.pid);
     const session = new CodexSession(config.sessionId, ptyProcess, sink);
     try {
       await session.handshake(config);

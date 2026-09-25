@@ -30,7 +30,7 @@ export interface ConnectorDetectResult {
  */
 export interface SessionSpawnConfig {
   sessionId: string;
-  /** Working directory — the session's git worktree by default. */
+  /** Working directory — the session's runtime-provisioned root (worktree by default). */
   cwd: string;
   /** CLI permission preset chosen at spawn; nothing here routes around approvals. */
   permissionMode?: 'default' | 'acceptEdits' | 'plan';
@@ -38,6 +38,19 @@ export interface SessionSpawnConfig {
   command?: string;
   /** Prepended to the connector's flag list (a fake CLI script path in tests). */
   extraArgs?: string[];
+  /**
+   * Session environment additions — the runtime seam's `AGENTMUX_RUNTIME` and
+   * friends (blueprint F4b). Merged over the daemon's environment; never used
+   * for credentials (the CLI owns those).
+   */
+  env?: Record<string, string>;
+  /**
+   * Notified whenever the session's live process group changes: the initial
+   * PTY leader, each exec turn's group, then 0 between turns. The daemon's
+   * process registry journals these so a crashed daemon's orphans can be
+   * reaped at the next boot.
+   */
+  onPidChange?: (pgid: number) => void;
 }
 
 /** Where the session pushes normalized events (the daemon journals then fans out). */

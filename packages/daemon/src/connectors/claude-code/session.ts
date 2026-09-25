@@ -81,8 +81,13 @@ export class ClaudeCodeSession {
       cols: 120,
       rows: 40,
       cwd: config.cwd,
-      env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'agentmux' } as Record<string, string>,
+      env: {
+        ...process.env,
+        CLAUDE_CODE_ENTRYPOINT: 'agentmux',
+        ...(config.env ?? {}),
+      } as Record<string, string>,
     });
+    config.onPidChange?.(ptyProcess.pid);
     return new ClaudeCodeSession(config.sessionId, ptyProcess, sink);
   }
 

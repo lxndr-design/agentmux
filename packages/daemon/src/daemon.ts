@@ -5,6 +5,12 @@ import { resolveDaemonOptions, type DaemonOptions, type ResolvedDaemonOptions } 
 import { FsBridge } from './fs-bridge.js';
 import { Gateway } from './gateway.js';
 import { EventJournal } from './journal.js';
+import { ClaudeCodeConnector } from './connectors/claude-code/connector.js';
+import { CodexConnector } from './connectors/codex/connector.js';
+import type { AgentConnector } from './connectors/types.js';
+import { ProcessRegistry } from './process-registry.js';
+import { Supervisor } from './supervisor.js';
+import { LocalRuntime, WorktreeRuntime } from './runtime.js';
 import { WorktreeManager } from './worktree.js';
 
 export interface DaemonHandle {
@@ -18,6 +24,8 @@ export interface DaemonHandle {
   readonly fs: FsBridge;
   /** Per-session worktree lifecycle (create/remove/gc/reconcile). */
   readonly worktrees: WorktreeManager;
+  /** The supervisor: owns live agent sessions, kills, restarts, and the boot reap. */
+  readonly supervisor: Supervisor;
   /** Journals the event (assigning the next seq) and fans it out. */
   ingest(sessionId: string, event: AgentEvent): AgentEventEnvelope;
   /** The actually-bound address — a port-0 boot resolves here. */
@@ -28,9 +36,9 @@ export interface DaemonHandle {
 
 /**
  * Boots the daemon: event journal, loopback-only HTTP server, and the
- * authenticated WS gateway on top. This is the seam every later layer hangs
- * from — the supervisor replaces hand-driven `ingest` calls with connector
- * pumps; the UI shell connects as just another gateway client.
+ * authenticated WS gateway on top, with the supervisor owning live agent
+ * sessions on the same journal. The UI shell connects as just another
+ * gateway client.
  */
 export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHandle> {
   const resolved = resolveDaemonOptions(options);
@@ -41,6 +49,40 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
   const gateway = new Gateway({ journal, token, fsBridge });
   // The bridge watches the workspace; every connection sees the change feed.
   const stopChangeRelay = fsBridge.onChange((event) => gateway.broadcastFsChange(event));
+
+  const ingest = (sessionId: string, event: AgentEvent): AgentEventEnvelope => {
+    // Journal first, fan out second — nothing observable may be missing
+    // from the state of record (blueprint: "Sequencing and replay").
+    const envelope = journal.append(sessionId, event);
+    gateway.broadcast(envelope);
+    return envelope;
+  };
+
+  const registry = new ProcessRegistry(journal.database);
+  const supervisor = new Supervisor({
+    runtimes: {
+      worktree: new WorktreeRuntime(worktrees),
+      local: new LocalRuntime(worktrees),
+    },
+    defaultRuntimeId: resolved.runtime,
+    registry,
+    ingest,
+    connectors: new Map<string, AgentConnector>([
+      ['claude-code', new ClaudeCodeConnector()],
+      ['codex', new CodexConnector()],
+    ]),
+  });
+
+  // Boot-time orphan reap: rows the previous daemon instance left behind are
+  // live agent process groups with no owner. Nothing else serves sessions
+  // until they are gone; a group that survives SIGKILL is boot noise.
+  for (const report of await supervisor.reapOrphans()) {
+    if (report.outcome === 'survived') {
+      console.warn(
+        `agentmux: orphaned process group ${report.pgid} (session '${report.sessionId}') survived SIGKILL — left registered for the next boot`,
+      );
+    }
+  }
 
   const server = createServer((_request, response) => {
     response.writeHead(404, { 'content-type': 'text/plain' });
@@ -66,13 +108,8 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     journal,
     fs: fsBridge,
     worktrees,
-    ingest(sessionId, event) {
-      // Journal first, fan out second — nothing observable may be missing
-      // from the state of record (blueprint: "Sequencing and replay").
-      const envelope = journal.append(sessionId, event);
-      gateway.broadcast(envelope);
-      return envelope;
-    },
+    supervisor,
+    ingest,
     address() {
       const bound = server.address();
       if (bound === null || typeof bound === 'string') {
