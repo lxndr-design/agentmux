@@ -1,0 +1,13 @@
+{"type":"thread.started","thread_id":"thr_exec_01"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"reasoning","text":""}}
+{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"Tracing the token refresh race."}}
+{"type":"item.started","item":{"id":"item_1","type":"agent_message","text":""}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Fixed the race."}}
+{"type":"item.started","item":{"id":"item_2","type":"command_execution","command":"npm test","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"command_execution","command":"npm test","aggregated_output":"all green","exit_code":0,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_3","type":"file_change","status":"in_progress","changes":[{"path":"src/auth.ts","kind":"update"}]}}
+{"type":"item.completed","item":{"id":"item_3","type":"file_change","status":"completed","changes":[{"path":"src/auth.ts","kind":"update"}]}}
+{"type":"item.started","item":{"id":"item_4","type":"command_execution","command":"rm -rf ./dist","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_4","type":"command_execution","command":"rm -rf ./dist","exit_code":1,"status":"failed","unknown_future_field":"retained"}}
+{"type":"turn.completed","usage":{"input_tokens":120,"output_tokens":45,"cached_input_tokens":10}}
