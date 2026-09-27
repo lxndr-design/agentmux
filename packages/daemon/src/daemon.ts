@@ -6,6 +6,7 @@ import { DivergenceService } from './divergence.js';
 import { FsBridge } from './fs-bridge.js';
 import { UsageRollupService } from './usage-rollups.js';
 import { FactoryQueue } from './factory-queue.js';
+import { FactoryScheduler } from './factory-scheduler.js';
 import { Gateway } from './gateway.js';
 import { HttpApi } from './http-api.js';
 import { EventJournal } from './journal.js';
@@ -44,6 +45,8 @@ export interface DaemonHandle {
   readonly approvals: ApprovalEngine;
   /** The code-factory ticket queue — the automation API's enqueue edge. */
   readonly factory: FactoryQueue;
+  /** The code-factory scheduler: claims tickets, drives sessions, records outcomes. */
+  readonly factoryScheduler: FactoryScheduler;
   /** Journals the event (assigning the next seq) and fans it out. */
   ingest(sessionId: string, event: AgentEvent): AgentEventEnvelope;
   /** The actually-bound address — a port-0 boot resolves here. */
@@ -131,6 +134,19 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     }
   }
 
+  // The code-factory scheduler (blueprint: "The code factory"): claims
+  // queued tickets under bounded concurrency, spawns each through the same
+  // supervised-session path as everything else, enforces per-ticket budgets
+  // against the journal, and records outcomes back on the queue. Arming is
+  // deferred past the reap above by construction — the first tick fires no
+  // earlier than the next timer beat, after this function returns.
+  const factoryScheduler = new FactoryScheduler({
+    queue: factory,
+    journal,
+    supervisor,
+    ...resolved.factory,
+  });
+
   // The actually-bound address, resolved lazily — a port-0 boot binds an
   // ephemeral port the handle and the API's stream pointers both read.
   const address = (): { host: string; port: number } => {
@@ -146,6 +162,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     journal,
     supervisor,
     queue: factory,
+    factoryScheduler,
     address,
   });
   const server = createServer((request, response) => {
@@ -177,6 +194,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     supervisor,
     approvals,
     factory,
+    factoryScheduler,
     ingest(sessionId, event) {
       // Journal first, fan out second — nothing observable may be missing
       // from the state of record (blueprint: "Sequencing and replay"). The
@@ -185,7 +203,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
       return approvals.ingest(sessionId, event);
     },
     address,
-    close: () => closeDaemon(server, gateway, journal, fsBridge, stopChangeRelay),
+    close: () => closeDaemon(server, gateway, journal, fsBridge, factoryScheduler, stopChangeRelay),
   };
 }
 
@@ -194,8 +212,11 @@ async function closeDaemon(
   gateway: Gateway,
   journal: EventJournal,
   fsBridge: FsBridge,
+  factoryScheduler: FactoryScheduler,
   stopChangeRelay: () => void,
 ): Promise<void> {
+  // The scheduler first: its ticks read the journal, which closes below.
+  factoryScheduler.stop();
   stopChangeRelay();
   fsBridge.close();
   await gateway.close();
