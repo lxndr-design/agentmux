@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgentEvent, ExitInfo } from '@agentmux/protocol';
 import type {
   AgentConnector,
@@ -227,6 +227,31 @@ function makeRig(
   return { clock, connector, journal, queue, scheduler, workspaceRoot };
 }
 
+/**
+ * Runs `body` with `Date.now` pinned to a stepping wall clock — each read
+ * returns the current value and advances by `stepMs`, restored on exit.
+ *
+ * `FactoryQueue.enqueue` stamps `created_at` from the real clock, and two
+ * back-to-back enqueues usually land in the same millisecond; the scheduler's
+ * `ORDER BY created_at, id` tiebreak then falls back to the tickets' random
+ * hex ids, making "first enqueued runs first" a coin flip. Stepping the clock
+ * turns enqueue order into a strict `created_at` order so FIFO assertions
+ * test the scheduler, not the millisecond boundary.
+ */
+function withSteppedWallClock<T>(startMs: number, stepMs: number, body: () => T): T {
+  let current = startMs;
+  const clock = vi.spyOn(Date, 'now').mockImplementation(() => {
+    const value = current;
+    current += stepMs;
+    return value;
+  });
+  try {
+    return body();
+  } finally {
+    clock.mockRestore();
+  }
+}
+
 const sessionIdFor = (ticketId: string): string => `factory-${ticketId}`;
 
 async function until<T>(
@@ -312,8 +337,12 @@ describe('evaluateBudget', () => {
 describe('FactoryScheduler', () => {
   it('claims queued tickets FIFO up to the concurrency limit', async () => {
     const rig = makeRig({ concurrency: 1 });
-    const first = rig.queue.enqueue({ title: 'first', spec: 'do a' });
-    const second = rig.queue.enqueue({ title: 'second', spec: 'do b' });
+    // Stepped clock — see withSteppedWallClock: without it the two
+    // same-millisecond enqueues left FIFO order to the random-id tiebreak.
+    const { first, second } = withSteppedWallClock(1_000_000, 1, () => ({
+      first: rig.queue.enqueue({ title: 'first', spec: 'do a' }),
+      second: rig.queue.enqueue({ title: 'second', spec: 'do b' }),
+    }));
 
     await rig.scheduler.tick();
 
