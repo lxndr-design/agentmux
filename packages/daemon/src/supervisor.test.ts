@@ -132,6 +132,7 @@ function makeSupervisor(
   overrides: {
     runInitHook?: (options: InitHookOptions) => Promise<InitHookResult>;
     connectors?: Map<string, AgentConnector>;
+    onSessionSpawned?: (sessionId: string, session: AgentSession) => void;
   } = {},
 ): Fixture {
   const ingested: Array<{ sessionId: string; event: AgentEvent }> = [];
@@ -150,6 +151,7 @@ function makeSupervisor(
       ingested.push({ sessionId, event });
     },
     connectors: overrides.connectors ?? new Map([['fake', connector]]),
+    onSessionSpawned: overrides.onSessionSpawned,
     killGraceMs: 50,
     reapGraceMs: 200,
   });

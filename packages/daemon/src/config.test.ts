@@ -15,6 +15,7 @@ describe('resolveDaemonOptions', () => {
       workspaceRoot: process.cwd(),
       runtime: 'worktree',
       approvalTimeoutMs: DEFAULT_APPROVAL_TIMEOUT_MS,
+      connectors: new Map(),
     });
   });
 
@@ -35,6 +36,7 @@ describe('resolveDaemonOptions', () => {
       workspaceRoot: '/tmp/ws',
       runtime: 'local',
       approvalTimeoutMs: 30_000,
+      connectors: new Map(),
     });
   });
 
