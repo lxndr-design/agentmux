@@ -4,6 +4,7 @@ import type { AgentEvent, AgentEventEnvelope } from '@agentmux/protocol';
 import { resolveDaemonOptions, type DaemonOptions, type ResolvedDaemonOptions } from './config.js';
 import { DivergenceService } from './divergence.js';
 import { FsBridge } from './fs-bridge.js';
+import { UsageRollupService } from './usage-rollups.js';
 import { Gateway } from './gateway.js';
 import { EventJournal } from './journal.js';
 import { ApprovalEngine } from './approval/approvalEngine.js';
@@ -55,7 +56,8 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
   const fsBridge = new FsBridge({ workspaceRoot: resolved.workspaceRoot });
   const worktrees = new WorktreeManager({ workspaceRoot: resolved.workspaceRoot });
   const divergence = new DivergenceService({ worktrees });
-  const gateway = new Gateway({ journal, token, fsBridge, divergence });
+  const usageRollups = new UsageRollupService({ journal });
+  const gateway = new Gateway({ journal, token, fsBridge, divergence, usageRollups });
   // The bridge watches the workspace; every connection sees the change feed.
   const stopChangeRelay = fsBridge.onChange((event) => gateway.broadcastFsChange(event));
 

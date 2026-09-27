@@ -53,6 +53,13 @@ const toolResultEventSchema = z.object({
 
 const usageEventSchema = z.object({
   kind: z.literal('usage'),
+  /**
+   * Per-event DELTAS, not running totals: every usage event reports the
+   * tokens consumed since the previous one (Claude's per-turn result usage;
+   * Codex's cumulative updates are diffed to deltas by its connector).
+   * Consumers that want a total so far sum the stream — the usage footer and
+   * the usage rollups both do.
+   */
   tokensIn: z.number().int().nonnegative(),
   tokensOut: z.number().int().nonnegative(),
   /** Vendor-reported plan quota remaining, when the CLI exposes one. */

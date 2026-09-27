@@ -157,6 +157,12 @@ export class CodexEventMapper {
   private readonly knownFileChanges = new Map<string, NormalizedItem>();
   /** exec-only: the thread id from `thread.started`, needed for `exec resume`. */
   private execThreadId: string | null = null;
+  /**
+   * Last cumulative thread total from `thread/tokenUsage/updated` — the
+   * baseline the next update's delta is diffed against (the journal's usage
+   * events are per-event deltas).
+   */
+  private lastCumulativeUsage: { tokensIn: number; tokensOut: number } | null = null;
   private readonly warnings: string[] = [];
   private readonly unknownLines: string[] = [];
 
@@ -446,10 +452,20 @@ export class CodexEventMapper {
         const usage = params.tokenUsage as
           { total?: { input_tokens?: unknown; output_tokens?: unknown } } | undefined;
         const total = usage?.total ?? {};
+        // The app-server reports a CUMULATIVE thread total on every update.
+        // The journal's usage contract is per-event deltas (the Claude
+        // connector's per-turn usage, which the rollups sum) — so keep the
+        // last-seen totals and emit the difference. A decrease (counters
+        // reset within one process) clamps to zero: never negative rollups.
+        const totalIn = typeof total.input_tokens === 'number' ? total.input_tokens : 0;
+        const totalOut = typeof total.output_tokens === 'number' ? total.output_tokens : 0;
+        const baseIn = this.lastCumulativeUsage === null ? 0 : this.lastCumulativeUsage.tokensIn;
+        const baseOut = this.lastCumulativeUsage === null ? 0 : this.lastCumulativeUsage.tokensOut;
+        this.lastCumulativeUsage = { tokensIn: totalIn, tokensOut: totalOut };
         this.emit({
           kind: 'usage',
-          tokensIn: typeof total.input_tokens === 'number' ? total.input_tokens : 0,
-          tokensOut: typeof total.output_tokens === 'number' ? total.output_tokens : 0,
+          tokensIn: Math.max(totalIn - baseIn, 0),
+          tokensOut: Math.max(totalOut - baseOut, 0),
         });
         return;
       }

@@ -14,8 +14,8 @@ import type { AgentEventEnvelope, SessionState } from '@agentmux/protocol';
  *   callId) resolves it to `ok`/`error` and carries the output — the live
  *   status the tool chip shows;
  * - `state_change` renders as a transition row;
- * - `usage` collapses to the latest vendor-reported totals, rendered as the
- *   pane footer rather than a timeline row.
+ * - `usage` accumulates the per-event deltas into a session total, rendered
+ *   as the pane footer rather than a timeline row.
  */
 
 export interface TurnItem {
@@ -79,7 +79,14 @@ export function buildTimelineItems(envelopes: readonly AgentEventEnvelope[]): Ti
   const toolsByCallId = new Map<string, ToolItem>();
   const turnsByTurnId = new Map<string, TurnItem>();
   let openThinking: ThinkingItem | null = null;
-  let usage: UsageTotals | null = null;
+  // Usage accumulators are primitives on purpose: a nullable object
+  // accumulator read inside its own assignment defeats TS flow narrowing
+  // (the read lands on `never`). `usageEvents` keeps the null-vs-zero
+  // distinction — the footer stays hidden until the first usage event.
+  let usageTokensIn = 0;
+  let usageTokensOut = 0;
+  let usagePlanQuota: number | null = null;
+  let usageEvents = 0;
 
   for (const envelope of envelopes) {
     const event = envelope.payload;
@@ -172,16 +179,26 @@ export function buildTimelineItems(envelopes: readonly AgentEventEnvelope[]): Ti
         items.push({ kind: 'state', key: `state-${envelope.seq}`, from: event.from, to: event.to });
         break;
       case 'usage':
-        usage = {
-          tokensIn: event.tokensIn,
-          tokensOut: event.tokensOut,
-          planQuota: event.planQuota ?? null,
-        };
+        // Usage events are per-event deltas (protocol contract) — the footer
+        // shows the session total so far, so the stream accumulates. The
+        // freshest planQuota wins: it is a level, not a delta.
+        usageTokensIn += event.tokensIn;
+        usageTokensOut += event.tokensOut;
+        usageEvents += 1;
+        if (event.planQuota !== undefined) {
+          usagePlanQuota = event.planQuota;
+        }
         break;
     }
   }
 
-  return { items, usage };
+  return {
+    items,
+    usage:
+      usageEvents === 0
+        ? null
+        : { tokensIn: usageTokensIn, tokensOut: usageTokensOut, planQuota: usagePlanQuota },
+  };
 }
 
 /** The pane-level visual state: what the most recent event says the agent is doing. */

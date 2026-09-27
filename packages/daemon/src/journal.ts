@@ -108,6 +108,29 @@ export class EventJournal {
     return stmt.all().map((row) => row.id);
   }
 
+  /**
+   * Every journaled envelope of one kind across ALL sessions, ordered by
+   * session then seq — the usage rollups' read (cross-session by design:
+   * "cost per agent/task/day" spans tombstoned sessions from previous runs
+   * too). Payloads round-trip the protocol schema like `replay` does.
+   */
+  eventsByKind(
+    kind: AgentEvent['kind'],
+  ): Array<{ sessionId: string; envelope: AgentEventEnvelope }> {
+    const stmt = this.db.prepare<[string], JournalRow & { sessionId: string }>(
+      'SELECT session_id AS sessionId, seq, ts, kind, payload FROM events WHERE kind = ? ORDER BY session_id ASC, seq ASC',
+    );
+    return stmt.all(kind).map((row) => ({
+      sessionId: row.sessionId,
+      envelope: agentEventEnvelopeSchema.parse({
+        sessionId: row.sessionId,
+        seq: row.seq,
+        ts: row.ts,
+        payload: JSON.parse(row.payload) as unknown,
+      }),
+    }));
+  }
+
   close(): void {
     // Idempotent — a second close on an already-closed handle is a no-op,
     // matching the daemon's own close semantics.

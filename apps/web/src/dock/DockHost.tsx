@@ -5,6 +5,7 @@ import { FileTreePane } from '../panes/FileTreePane';
 import { EditorPane } from '../panes/EditorPane';
 import { DiffPane } from '../panes/DiffPane';
 import { DivergencePane } from '../panes/DivergencePane';
+import { UsagePane } from '../panes/UsagePane';
 import 'dockview-react/dist/styles/dockview.css';
 
 /**
@@ -38,6 +39,10 @@ function DivergencePanel() {
   return <DivergencePane />;
 }
 
+function UsagePanel() {
+  return <UsagePane />;
+}
+
 const components = {
   agent: AgentPanel,
   terminal: TerminalPanel,
@@ -45,6 +50,7 @@ const components = {
   editor: EditorPanel,
   diff: DiffPanel,
   divergence: DivergencePanel,
+  usage: UsagePanel,
 };
 
 export function DockHost() {
@@ -83,6 +89,12 @@ export function DockHost() {
       component: 'divergence',
       title: 'divergence',
       position: { referencePanel: 'diff', direction: 'below' },
+    });
+    api.addPanel({
+      id: 'usage',
+      component: 'usage',
+      title: 'usage',
+      position: { referencePanel: 'divergence', direction: 'below' },
     });
   };
 
