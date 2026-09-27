@@ -100,18 +100,45 @@ export function buildDefaultLayout(api: DockviewApi): void {
     title: 'diff',
     position: { referencePanel: 'editor', direction: 'below' },
   });
+  ensureObservabilityPanes(api);
+}
+
+/**
+ * The observability panes are a shell invariant, not a user-arranged extra:
+ * add whichever are missing after any default build or stored-layout restore.
+ * Legacy stored layouts (saved before these panes existed, or during the
+ * clear-race) self-heal here instead of staying pane-less forever.
+ */
+function ensureObservabilityPanes(api: DockviewApi): void {
+  if (!api.panels.some((p) => p.id === 'divergence')) {
+    api.addPanel({
+      id: 'divergence',
+      component: 'divergence',
+      title: 'divergence',
+      position: { referencePanel: 'diff', direction: 'below' },
+    });
+  }
+  if (!api.panels.some((p) => p.id === 'usage')) {
+    api.addPanel({
+      id: 'usage',
+      component: 'usage',
+      title: 'usage',
+      position: { referencePanel: 'divergence', direction: 'below' },
+    });
+  }
 }
 
 function restoreOrDefault(api: DockviewApi, workspaceId: string): void {
   const stored = validateStoredLayout(loadStoredLayout(workspaceId), KNOWN_DOCK_COMPONENTS);
   if (stored !== null) {
     api.fromJSON(stored);
-    return;
+  } else {
+    // No usable stored layout (fresh workspace, unknown component, empty
+    // layout) — drop whatever is mounted and start from the default.
+    api.clear();
+    buildDefaultLayout(api);
   }
-  // No usable stored layout (fresh workspace, unknown component, empty
-  // layout) — drop whatever is mounted and start from the default.
-  api.clear();
-  buildDefaultLayout(api);
+  ensureObservabilityPanes(api);
 }
 
 export function DockHost({ workspaceId }: { workspaceId: string | null }) {
@@ -153,18 +180,6 @@ export function DockHost({ workspaceId }: { workspaceId: string | null }) {
       if (active !== null) {
         saveLayout(active, api.toJSON());
       }
-    });
-    api.addPanel({
-      id: 'divergence',
-      component: 'divergence',
-      title: 'divergence',
-      position: { referencePanel: 'diff', direction: 'below' },
-    });
-    api.addPanel({
-      id: 'usage',
-      component: 'usage',
-      title: 'usage',
-      position: { referencePanel: 'divergence', direction: 'below' },
     });
   };
 
