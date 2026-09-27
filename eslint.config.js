@@ -8,9 +8,10 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    // Plain-Node scripts (.mjs — the demo harness). TS files are exempt from
-    // no-undef by typescript-eslint; these aren't, so name the globals.
-    files: ['**/*.mjs'],
+    // Plain-Node scripts (.mjs — the demo harness; bin shims — executable
+    // entry points). TS files are exempt from no-undef by typescript-eslint;
+    // these aren't, so name the globals.
+    files: ['**/*.mjs', '**/bin/**/*.js'],
     languageOptions: {
       globals: {
         setTimeout: 'readonly',
@@ -20,6 +21,7 @@ export default tseslint.config(
         console: 'readonly',
         URL: 'readonly',
         fetch: 'readonly',
+        process: 'readonly',
       },
     },
   },
