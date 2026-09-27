@@ -9,6 +9,7 @@
 
 import { resolveRuntimeId, type RuntimeId } from './runtime.js';
 import type { AgentConnector } from './connectors/types.js';
+import type { FactorySchedulerConfig } from './factory-scheduler.js';
 
 export const DAEMON_DEFAULT_PORT = 8787;
 export const DAEMON_DEFAULT_HOST = '127.0.0.1';
@@ -47,6 +48,11 @@ export interface DaemonOptions {
    * never a real CLI, never API keys. Production never passes this.
    */
   connectors?: ReadonlyMap<string, AgentConnector>;
+  /**
+   * The code-factory scheduler's configuration (blueprint: "The code
+   * factory") — concurrency, backoff, verify budget, token pricing.
+   */
+  factory?: FactorySchedulerConfig;
 }
 
 export type ResolvedDaemonOptions = Required<DaemonOptions>;
@@ -66,5 +72,6 @@ export function resolveDaemonOptions(options: DaemonOptions = {}): ResolvedDaemo
     runtime: resolveRuntimeId(options.runtime),
     approvalTimeoutMs: options.approvalTimeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS,
     connectors: options.connectors ?? new Map<string, AgentConnector>(),
+    factory: options.factory ?? {},
   };
 }

@@ -16,6 +16,7 @@ describe('resolveDaemonOptions', () => {
       runtime: 'worktree',
       approvalTimeoutMs: DEFAULT_APPROVAL_TIMEOUT_MS,
       connectors: new Map(),
+      factory: {},
     });
   });
 
@@ -37,6 +38,7 @@ describe('resolveDaemonOptions', () => {
       runtime: 'local',
       approvalTimeoutMs: 30_000,
       connectors: new Map(),
+      factory: {},
     });
   });
 

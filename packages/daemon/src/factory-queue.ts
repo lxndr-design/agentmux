@@ -4,11 +4,11 @@ import { DEFAULT_RUNTIME_ID, RUNTIME_IDS, type RuntimeId } from './runtime.js';
 
 /**
  * The code-factory ticket queue (blueprint: "The code factory"). The
- * automation API ships the write edge only — `enqueue` — plus point reads;
+ * automation API ships the write edge — `enqueue` — plus point reads;
  * claiming, concurrency slots, budget enforcement, and the
- * `queued → … → pr-opened/failed` state machine belong to the scheduler
- * workstream (assumption A-factory, open questions Q8/Q9), so this store
- * deliberately exposes no claim or transition API yet.
+ * `queued → … → pr-opened/failed` state machine live in the scheduler
+ * (factory-scheduler.ts, migration 004's scheduler-owned columns) — this
+ * store exposes no claim or transition API.
  *
  * Same SQLite file as the event journal (the daemon's single state of
  * record), own mutable table — see migration 003. Ticket text is untrusted
@@ -42,6 +42,17 @@ export interface EnqueueTicketInput {
   budgetUsd?: number;
   retries?: number;
   bestOfN?: number;
+  /** Budget cap: total tokens (in + out) across the ticket's session. */
+  maxTokens?: number;
+  /** Budget cap: tool-use steps across the ticket's session. */
+  maxSteps?: number;
+  /**
+   * Verification gate — the operator-authored definition of done, run in the
+   * session worktree before the ticket may complete (e.g. "npm test").
+   * Operator-authored by construction: it must never be derived from ticket
+   * text (risk R10 applies to the future issue-import path twice over).
+   */
+  verifyCommand?: string;
 }
 
 export interface FactoryTicket {
@@ -55,12 +66,15 @@ export interface FactoryTicket {
   readonly budgetUsd: number | null;
   readonly retries: number;
   readonly bestOfN: number;
+  readonly maxTokens: number | null;
+  readonly maxSteps: number | null;
+  readonly verifyCommand: string | null;
   readonly state: TicketState;
   readonly createdAt: number;
   readonly updatedAt: number;
 }
 
-interface QueueRow {
+export interface QueueRow {
   id: string;
   title: string;
   spec: string;
@@ -71,15 +85,23 @@ interface QueueRow {
   budget_usd: number | null;
   retries: number;
   best_of_n: number;
+  max_tokens: number | null;
+  max_steps: number | null;
+  verify_command: string | null;
   state: string;
   created_at: number;
   updated_at: number;
 }
 
-const INSERT_COLUMNS = `(
-  id, title, spec, repo, base_branch, runtime, policy_class,
-  budget_usd, retries, best_of_n, state, created_at, updated_at
-)`;
+/**
+ * The queue-authored column list — INSERT here, and the prefix of every
+ * scheduler SELECT (factory-scheduler.ts appends its own columns).
+ */
+export const TICKET_COLUMNS = `id, title, spec, repo, base_branch, runtime, policy_class,
+  budget_usd, retries, best_of_n, max_tokens, max_steps, verify_command,
+  state, created_at, updated_at`;
+
+const INSERT_COLUMNS = `(${TICKET_COLUMNS})`;
 
 export class FactoryQueue {
   private readonly insertStmt: Database.Statement<
@@ -94,6 +116,9 @@ export class FactoryQueue {
       number | null,
       number,
       number,
+      number | null,
+      number | null,
+      string | null,
       string,
       number,
       number,
@@ -104,11 +129,12 @@ export class FactoryQueue {
   constructor(private readonly db: Database.Database) {
     this.insertStmt = this.db.prepare(
       `INSERT INTO factory_tickets ${INSERT_COLUMNS}
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     this.getStmt = this.db.prepare(
       `SELECT id, title, spec, repo, base_branch, runtime, policy_class,
-              budget_usd, retries, best_of_n, state, created_at, updated_at
+              budget_usd, retries, best_of_n, max_tokens, max_steps,
+              verify_command, state, created_at, updated_at
        FROM factory_tickets WHERE id = ?`,
     );
   }
@@ -132,6 +158,9 @@ export class FactoryQueue {
       budget_usd: input.budgetUsd ?? null,
       retries: input.retries ?? 2,
       best_of_n: input.bestOfN ?? 1,
+      max_tokens: input.maxTokens ?? null,
+      max_steps: input.maxSteps ?? null,
+      verify_command: input.verifyCommand ?? null,
       state: 'queued',
       created_at: now,
       updated_at: now,
@@ -147,6 +176,9 @@ export class FactoryQueue {
       row.budget_usd,
       row.retries,
       row.best_of_n,
+      row.max_tokens,
+      row.max_steps,
+      row.verify_command,
       row.state,
       row.created_at,
       row.updated_at,
@@ -161,7 +193,7 @@ export class FactoryQueue {
   }
 }
 
-function toTicket(row: QueueRow): FactoryTicket {
+export function toTicket(row: QueueRow): FactoryTicket {
   return {
     id: row.id,
     title: row.title,
@@ -175,6 +207,9 @@ function toTicket(row: QueueRow): FactoryTicket {
     budgetUsd: row.budget_usd,
     retries: row.retries,
     bestOfN: row.best_of_n,
+    maxTokens: row.max_tokens,
+    maxSteps: row.max_steps,
+    verifyCommand: row.verify_command,
     state: (TICKET_STATES as readonly string[]).includes(row.state)
       ? (row.state as TicketState)
       : 'queued',

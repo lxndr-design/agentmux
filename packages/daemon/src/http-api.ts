@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
 import type { SessionState } from '@agentmux/protocol';
 import type { FactoryQueue } from './factory-queue.js';
+import type { FactoryScheduler } from './factory-scheduler.js';
 import type { EventJournal } from './journal.js';
 import { InitHookError } from './init-hook.js';
 import { WorktreeError } from './worktree.js';
@@ -16,13 +17,15 @@ import type { Supervisor } from './supervisor.js';
  * refuses any non-loopback host), so the API is local-only like everything
  * else in v1 (open question Q10).
  *
- * Deliberately small — the factory scheduler is a separate workstream, so
- * enqueue is a queue write, not a run:
+ * Deliberately small — writes go through the queue, observation through the
+ * scheduler's read model:
  *
  *   POST /api/sessions             create a session (supervisor.start)
  *   GET  /api/sessions             list live sessions
  *   GET  /api/sessions/:id/stream  stream pointer (WS url + replay cursor)
- *   POST /api/factory/tickets      enqueue a factory ticket
+ *   POST /api/factory/tickets      enqueue a factory ticket (queue write only)
+ *   GET  /api/factory              scheduler status — counts, concurrency, pricing
+ *   GET  /api/factory/tickets      all tickets with phase, outcome, and usage
  *
  * Security notes: the token check runs before any routing, and the
  * supervisor's `command`/`extraArgs` test seams are intentionally absent
@@ -58,6 +61,9 @@ const enqueueTicketBodySchema = z.object({
   budgetUsd: z.number().positive().optional(),
   retries: z.number().int().min(0).max(10).optional(),
   bestOfN: z.number().int().min(1).max(10).optional(),
+  maxTokens: z.number().int().positive().optional(),
+  maxSteps: z.number().int().positive().optional(),
+  verifyCommand: z.string().min(1).max(2_000).optional(),
 });
 
 /** Where to subscribe for a session's live event stream. */
@@ -77,6 +83,7 @@ export interface HttpApiOptions {
   journal: EventJournal;
   supervisor: Supervisor;
   queue: FactoryQueue;
+  factoryScheduler: FactoryScheduler;
   /** The daemon's bound endpoint — resolved per request (port-0 boots). */
   address: () => { host: string; port: number };
 }
@@ -120,6 +127,14 @@ export class HttpApi {
     }
     if (method === 'POST' && url.pathname === '/api/factory/tickets') {
       await this.enqueueTicket(request, response);
+      return;
+    }
+    if (method === 'GET' && url.pathname === '/api/factory') {
+      this.json(response, 200, this.options.factoryScheduler.status());
+      return;
+    }
+    if (method === 'GET' && url.pathname === '/api/factory/tickets') {
+      this.json(response, 200, { tickets: this.options.factoryScheduler.listTickets() });
       return;
     }
     this.json(response, 404, { error: `no such API route: ${method} ${url.pathname}` });
