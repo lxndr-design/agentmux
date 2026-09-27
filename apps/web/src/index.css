@@ -138,6 +138,17 @@ body {
   border-color: var(--danger);
 }
 
+/* Attention states (task: divergence + rollups) — the badge copy and the
+   chip carry `data-attention`; waiting-approval pulses via data-state above. */
+.badge[data-attention='idle-done'] {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.ribbon-session[data-attention='needs-approval'] {
+  box-shadow: 0 0 0 1px var(--danger);
+}
+
 @keyframes pulse {
   0%,
   100% {

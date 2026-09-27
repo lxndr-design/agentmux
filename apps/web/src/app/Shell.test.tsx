@@ -123,6 +123,20 @@ describe('Shell', () => {
     const badge = document.querySelector('[data-testid="state-badge-s1"]');
     expect(badge).toBeTruthy();
     expect(badge!.getAttribute('data-state')).toBe('waiting-approval');
+    expect(badge!.getAttribute('data-attention')).toBe('needs-approval');
+  });
+
+  it('marks a ready session with a finished assistant turn as idle-done on the chip', () => {
+    seedSession({
+      state: 'ready',
+      envelopes: [
+        envelope(0, { kind: 'turn', turnId: 't1', role: 'assistant', text: 'did it', done: true }),
+      ],
+    });
+    render(<Shell />);
+    const badge = document.querySelector('[data-testid="state-badge-s1"]');
+    expect(badge!.getAttribute('data-attention')).toBe('idle-done');
+    expect(badge!.textContent).toBe('done');
   });
 
   it('disables the start control when the demo harness is unavailable', () => {
