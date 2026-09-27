@@ -15,6 +15,21 @@ import type { Database } from 'better-sqlite3';
  * identified and reaped at the next boot (blueprint: "Kill semantics" —
  * "Process-group ids journaled; boot-time reap"). Unlike `events` this table
  * is mutable: rows are upserted on spawn and deleted on clean exit.
+ *
+ * 003 — the factory ticket queue (blueprint: "The code factory"). The
+ * enqueue edge writes `queued` rows only; the state column carries the full
+ * factory state model for the scheduler's transitions.
+ *
+ * 004 — the scheduler's columns over the same table (the scheduler
+ * workstream the queue was shipped for). Enqueue-authored budget and
+ * verification fields (`max_tokens`, `max_steps`, `verify_command`) ride the
+ * queue's INSERT; the rest are owned exclusively by the factory scheduler's
+ * claim/transition statements: `attempt` counts spawned attempts,
+ * `session_id`/`session_cwd` link the run (stable across retries so every
+ * attempt lands back in the same worktree), `next_attempt_at` holds the
+ * exponential-backoff eligibility time, and `outcome`/`outcome_detail`
+ * record how the last attempt closed — detail on every attempt end,
+ * outcome only when the ticket reaches a terminal state.
  */
 export const MIGRATIONS: readonly string[] = [
   `
@@ -64,6 +79,17 @@ export const MIGRATIONS: readonly string[] = [
     created_at   INTEGER NOT NULL,
     updated_at   INTEGER NOT NULL
   );
+  `,
+  `
+  ALTER TABLE factory_tickets ADD COLUMN max_tokens INTEGER;
+  ALTER TABLE factory_tickets ADD COLUMN max_steps INTEGER;
+  ALTER TABLE factory_tickets ADD COLUMN verify_command TEXT;
+  ALTER TABLE factory_tickets ADD COLUMN attempt INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE factory_tickets ADD COLUMN session_id TEXT;
+  ALTER TABLE factory_tickets ADD COLUMN session_cwd TEXT;
+  ALTER TABLE factory_tickets ADD COLUMN next_attempt_at INTEGER;
+  ALTER TABLE factory_tickets ADD COLUMN outcome TEXT;
+  ALTER TABLE factory_tickets ADD COLUMN outcome_detail TEXT;
   `,
 ];
 
