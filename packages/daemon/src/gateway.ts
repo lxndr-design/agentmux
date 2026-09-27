@@ -5,6 +5,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import type {
   AgentEventEnvelope,
   ApprovalDecision,
+  ConnectorDetectReport,
   DivergenceEntry,
   UsageRollups,
 } from '@agentmux/protocol';
@@ -91,6 +92,12 @@ export class Gateway {
    * rejection flows back to the sending client as a wire `error` message.
    */
   onDecision: ((sessionId: string, decision: ApprovalDecision) => DecisionRoute) | null = null;
+  /**
+   * Set by the daemon after construction — the connector registry's detect
+   * intake, the onboarding wizard's data source. Status only: reports say
+   * what each CLI's own probe says, never a credential.
+   */
+  onDetect: (() => Promise<ConnectorDetectReport[]>) | null = null;
 
   constructor(private readonly options: GatewayOptions) {
     this.wss = new WebSocketServer({ noServer: true });
@@ -170,6 +177,9 @@ export class Gateway {
         this.options.usageRollups?.list(),
       );
     }
+    if (parsed.data.type === 'detect_request') {
+      void this.handleDetectRequest(ws, parsed.data.requestId);
+    }
     if (parsed.data.type === 'decide') {
       const outcome =
         this.onDecision?.(parsed.data.sessionId, parsed.data.decision) ??
@@ -210,6 +220,26 @@ export class Gateway {
       return;
     }
     this.send(ws, { type: 'usage_rollups_result', requestId, rollups: payload });
+  }
+
+  /**
+   * Onboarding detect: run every registered connector's probe and answer one
+   * detect_result for the request id. A missing registry is a typed error,
+   * not a silent hang — same contract as the FS route.
+   */
+  private async handleDetectRequest(ws: WebSocket, requestId: string): Promise<void> {
+    if (this.onDetect === null) {
+      this.send(ws, { type: 'error', message: 'no connector registry is running' });
+      return;
+    }
+    try {
+      this.send(ws, { type: 'detect_result', requestId, results: await this.onDetect() });
+    } catch (error) {
+      this.send(ws, {
+        type: 'error',
+        message: `connector detection failed: ${(error as Error).message}`,
+      });
+    }
   }
 
   /**

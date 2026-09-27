@@ -24,12 +24,84 @@
  * Run with: npm run demo (builds the workspace first, then runs this file).
  */
 import http from 'node:http';
-import { startDaemon } from '@agentmux/daemon';
+import { ClaudeCodeConnector, CodexConnector, startDaemon } from '@agentmux/daemon';
 
 const CONTROL_PORT = 8788;
 
 const daemon = await startDaemon({ port: 8787, host: '127.0.0.1', journalPath: ':memory:' });
 const wsPort = daemon.address().port;
+
+// ---- Onboarding detect sources -------------------------------------------
+// Off = the real connector probes (what production uses). Fixture modes give
+// the onboarding e2e deterministic install/auth states without touching a
+// real CLI. Status only — no fixture ever contains a credential.
+
+const REAL_CONNECTORS = [
+  ['claude-code', new ClaudeCodeConnector()],
+  ['codex', new CodexConnector()],
+];
+
+const DETECT_FIXTURES = {
+  'missing-cli': [
+    { connectorId: 'claude-code', installed: false },
+    { connectorId: 'codex', installed: false },
+  ],
+  'missing-auth': [
+    {
+      connectorId: 'claude-code',
+      installed: true,
+      version: '2.1.0',
+      authState: 'none',
+      authDetail: 'Not logged in — run `claude auth login`, or start `claude` and use /login',
+    },
+    {
+      connectorId: 'codex',
+      installed: true,
+      version: '0.42.0',
+      authState: 'none',
+      authDetail:
+        'Not logged in — run `codex login` (Sign in with ChatGPT) or `codex login --api-key`',
+    },
+  ],
+  ready: [
+    {
+      connectorId: 'claude-code',
+      installed: true,
+      version: '2.1.0',
+      authState: 'logged-in',
+      authDetail: 'Logged in (`claude auth status` exit 0) — the CLI owns the credentials',
+    },
+    {
+      connectorId: 'codex',
+      installed: true,
+      version: '0.42.0',
+      authState: 'subscription',
+      authDetail: 'Signed in with ChatGPT (subscription billing)',
+    },
+  ],
+};
+
+function applyDetectSource(mode) {
+  if (mode === 'off') {
+    daemon.gateway.onDetect = () =>
+      Promise.all(
+        REAL_CONNECTORS.map(async ([connectorId, connector]) => ({
+          connectorId,
+          ...(await connector.detect()),
+        })),
+      );
+    return;
+  }
+  const fixture = DETECT_FIXTURES[mode];
+  daemon.gateway.onDetect = () => Promise.resolve(fixture);
+}
+
+let detectMode = process.env.AGENTMUX_DETECT_FIXTURE ?? 'off';
+if (detectMode !== 'off' && !(detectMode in DETECT_FIXTURES)) {
+  console.warn(`agentmux: unknown AGENTMUX_DETECT_FIXTURE '${detectMode}' — using real probes`);
+  detectMode = 'off';
+}
+applyDetectSource(detectMode);
 
 /**
  * The scripted session — every transition is legal per
@@ -218,6 +290,26 @@ http
     if (request.method === 'POST' && stopMatch !== null) {
       const stopped = stopSession(decodeURIComponent(stopMatch[1]));
       json({ ok: stopped });
+      return;
+    }
+    if (request.method === 'POST' && request.url === '/demo/detect-fixtures') {
+      readBody((raw) => {
+        let mode = 'off';
+        try {
+          const parsed = JSON.parse(raw);
+          if (typeof parsed.mode === 'string') mode = parsed.mode;
+        } catch {
+          // default mode — the body is optional
+        }
+        if (mode !== 'off' && !(mode in DETECT_FIXTURES)) {
+          response.writeHead(400, { 'content-type': 'text/plain', ...cors });
+          response.end(`unknown detect fixture mode: ${mode}\n`);
+          return;
+        }
+        detectMode = mode;
+        applyDetectSource(mode);
+        json({ ok: true, mode });
+      });
       return;
     }
     notFound();

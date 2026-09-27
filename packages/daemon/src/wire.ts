@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   agentEventEnvelopeSchema,
   approvalDecisionSchema,
+  connectorDetectSchema,
   divergenceEntrySchema,
   fsErrorSchema,
   fsRequestSchema,
@@ -82,6 +83,19 @@ export const usageRollupsResultMessageSchema = z.object({
   rollups: usageRollupsSchema,
 });
 
+/** Onboarding: detect every registered connector's install and login state. */
+export const detectRequestMessageSchema = z.object({
+  type: z.literal('detect_request'),
+  /** Caller-chosen correlation id — responses echo it verbatim. */
+  requestId: z.string().min(1),
+});
+
+export const detectResultMessageSchema = z.object({
+  type: z.literal('detect_result'),
+  requestId: z.string().min(1),
+  results: z.array(connectorDetectSchema),
+});
+
 export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('subscribe'),
@@ -95,6 +109,7 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   fsRequestMessageSchema,
   divergenceRequestMessageSchema,
   usageRollupsRequestMessageSchema,
+  detectRequestMessageSchema,
   z.object({
     type: z.literal('decide'),
     sessionId: z.string().min(1),
@@ -136,5 +151,6 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
   fsChangeMessageSchema,
   divergenceResultMessageSchema,
   usageRollupsResultMessageSchema,
+  detectResultMessageSchema,
 ]);
 export type ServerMessage = z.infer<typeof serverMessageSchema>;

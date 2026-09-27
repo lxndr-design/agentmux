@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   agentEventEnvelopeSchema,
   approvalDecisionSchema,
+  connectorDetectSchema,
   divergenceEntrySchema,
   fsErrorSchema,
   fsRequestSchema,
@@ -29,6 +30,12 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
      * gap. Omitted means "I have seen nothing" — full replay from seq 0.
      */
     fromSeq: z.number().int().nonnegative().optional(),
+  }),
+  /** Onboarding: detect every registered connector's install and login state. */
+  z.object({
+    type: z.literal('detect_request'),
+    /** Caller-chosen correlation id — responses echo it verbatim. */
+    requestId: z.string().min(1),
   }),
   z.object({
     type: z.literal('decide'),
@@ -119,6 +126,14 @@ export const usageRollupsResultMessageSchema = z.object({
 });
 export type UsageRollupsResultMessage = z.infer<typeof usageRollupsResultMessageSchema>;
 
+/** Onboarding detect responses — status only, never credentials (F2e/F3a). */
+export const detectResultMessageSchema = z.object({
+  type: z.literal('detect_result'),
+  requestId: z.string().min(1),
+  results: z.array(connectorDetectSchema),
+});
+export type DetectResultMessage = z.infer<typeof detectResultMessageSchema>;
+
 export const serverMessageSchema = z.discriminatedUnion('type', [
   replayMessageSchema,
   replayEndMessageSchema,
@@ -129,6 +144,7 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
   fsChangeMessageSchema,
   divergenceResultMessageSchema,
   usageRollupsResultMessageSchema,
+  detectResultMessageSchema,
 ]);
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
 
