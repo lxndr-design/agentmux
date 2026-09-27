@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   agentEventEnvelopeSchema,
   approvalDecisionSchema,
+  connectorDetectSchema,
   fsErrorSchema,
   fsRequestSchema,
   fsResultSchema,
@@ -52,6 +53,19 @@ export const fsChangeMessageSchema = z.object({
     .optional(),
 });
 
+/** Onboarding: detect every registered connector's install and login state. */
+export const detectRequestMessageSchema = z.object({
+  type: z.literal('detect_request'),
+  /** Caller-chosen correlation id — responses echo it verbatim. */
+  requestId: z.string().min(1),
+});
+
+export const detectResultMessageSchema = z.object({
+  type: z.literal('detect_result'),
+  requestId: z.string().min(1),
+  results: z.array(connectorDetectSchema),
+});
+
 export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('subscribe'),
@@ -63,6 +77,7 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
     fromSeq: z.number().int().nonnegative().optional(),
   }),
   fsRequestMessageSchema,
+  detectRequestMessageSchema,
   z.object({
     type: z.literal('decide'),
     sessionId: z.string().min(1),
@@ -102,5 +117,6 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
   fsResultMessageSchema,
   fsErrorMessageSchema,
   fsChangeMessageSchema,
+  detectResultMessageSchema,
 ]);
 export type ServerMessage = z.infer<typeof serverMessageSchema>;

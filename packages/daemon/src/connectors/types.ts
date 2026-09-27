@@ -1,4 +1,10 @@
-import type { AgentEvent, ApprovalDecision, ExitInfo, SessionState } from '@agentmux/protocol';
+import type {
+  AgentEvent,
+  ApprovalDecision,
+  AuthState,
+  ExitInfo,
+  SessionState,
+} from '@agentmux/protocol';
 
 /**
  * Vendor-neutral connector contracts (blueprint: "One event model, many
@@ -16,8 +22,10 @@ export interface ConnectorDetectResult {
    * Subscription-auth state for CLIs that log in outside agentmux (Codex:
    * ChatGPT plan vs API key vs none — F3a/F3b). Credentials are the user's
    * own and stay with the CLI; this only reports what the CLI itself reports.
+   * Shape is the protocol's detect contract; the zod schema there is the
+   * single source of truth.
    */
-  authState?: 'subscription' | 'api-key' | 'other' | 'none' | 'unavailable';
+  authState?: AuthState;
   /** Human-readable auth diagnostic rendered next to the state. */
   authDetail?: string;
 }
