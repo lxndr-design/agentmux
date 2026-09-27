@@ -930,3 +930,161 @@ body {
   padding: 4px 8px;
   border-top: 1px solid var(--border);
 }
+
+/* Divergence panel */
+.divergence-pane {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.divergence-pane__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.divergence-pane__title {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pane-button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 2px 10px;
+}
+
+.pane-button:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.pane-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.divergence-pane__error {
+  background: rgba(255, 91, 106, 0.12);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  margin: 8px 10px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  color: var(--danger);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.divergence-pane__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.divergence-row {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.divergence-row__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.divergence-row__branch {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.82rem;
+  padding: 0;
+  text-align: left;
+}
+
+.divergence-row__counts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge--ahead {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.badge--behind {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.divergence-row__files {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+.divergence-row__pr {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
+.divergence-row__base {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  margin-top: 2px;
+}
+
+.divergence-row__error {
+  color: var(--danger);
+  font-size: 0.75rem;
+}
+
+.divergence-row__file-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0 0 0 12px;
+}
+
+.divergence-row__file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  padding: 1px 0;
+}
+
+.divergence-row__file-path {
+  color: var(--text-dim);
+  word-break: break-all;
+}
+
+.file-badge {
+  font-size: 0.62rem;
+  font-weight: 600;
+  width: 14px;
+  text-align: center;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.file-badge--added {
+  color: var(--ok);
+}
+
+.file-badge--deleted {
+  color: var(--danger);
+}

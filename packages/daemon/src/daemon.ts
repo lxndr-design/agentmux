@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AgentEvent, AgentEventEnvelope } from '@agentmux/protocol';
 import { resolveDaemonOptions, type DaemonOptions, type ResolvedDaemonOptions } from './config.js';
+import { DivergenceService } from './divergence.js';
 import { FsBridge } from './fs-bridge.js';
 import { Gateway } from './gateway.js';
 import { EventJournal } from './journal.js';
@@ -53,7 +54,8 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
   const token = randomBytes(32).toString('base64url');
   const fsBridge = new FsBridge({ workspaceRoot: resolved.workspaceRoot });
   const worktrees = new WorktreeManager({ workspaceRoot: resolved.workspaceRoot });
-  const gateway = new Gateway({ journal, token, fsBridge });
+  const divergence = new DivergenceService({ worktrees });
+  const gateway = new Gateway({ journal, token, fsBridge, divergence });
   // The bridge watches the workspace; every connection sees the change feed.
   const stopChangeRelay = fsBridge.onChange((event) => gateway.broadcastFsChange(event));
 

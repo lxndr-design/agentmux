@@ -2,9 +2,11 @@ import { z } from 'zod';
 import {
   agentEventEnvelopeSchema,
   approvalDecisionSchema,
+  divergenceEntrySchema,
   fsErrorSchema,
   fsRequestSchema,
   fsResultSchema,
+  usageRollupsSchema,
 } from '@agentmux/protocol';
 
 /**
@@ -97,6 +99,26 @@ export const fsChangeMessageSchema = z.object({
 });
 export type FsChangeMessage = z.infer<typeof fsChangeMessageSchema>;
 
+/**
+ * Observability RPC over the same gateway (blueprint "Divergence view" /
+ * "Cost & token tracking") — requestId correlation like the FS RPC. The
+ * requests carry no parameters; the panels are workspace-global.
+ */
+
+export const divergenceResultMessageSchema = z.object({
+  type: z.literal('divergence_result'),
+  requestId: z.string().min(1),
+  entries: z.array(divergenceEntrySchema),
+});
+export type DivergenceResultMessage = z.infer<typeof divergenceResultMessageSchema>;
+
+export const usageRollupsResultMessageSchema = z.object({
+  type: z.literal('usage_rollups_result'),
+  requestId: z.string().min(1),
+  rollups: usageRollupsSchema,
+});
+export type UsageRollupsResultMessage = z.infer<typeof usageRollupsResultMessageSchema>;
+
 export const serverMessageSchema = z.discriminatedUnion('type', [
   replayMessageSchema,
   replayEndMessageSchema,
@@ -105,6 +127,8 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
   fsResultMessageSchema,
   fsErrorMessageSchema,
   fsChangeMessageSchema,
+  divergenceResultMessageSchema,
+  usageRollupsResultMessageSchema,
 ]);
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
 

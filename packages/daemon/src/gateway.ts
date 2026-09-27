@@ -2,7 +2,12 @@ import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocket, WebSocketServer } from 'ws';
-import type { AgentEventEnvelope, ApprovalDecision } from '@agentmux/protocol';
+import type {
+  AgentEventEnvelope,
+  ApprovalDecision,
+  DivergenceEntry,
+  UsageRollups,
+} from '@agentmux/protocol';
 import { FsBridgeError, splitSessionPath, type FsBridge, type FsChangeEvent } from './fs-bridge.js';
 import type { EventJournal } from './journal.js';
 import { clientMessageSchema, type ServerMessage } from './wire.js';
@@ -13,6 +18,16 @@ const REPLAY_BATCH_SIZE = 500;
 /** What the approval engine answers when a client sends a decision. */
 export type DecisionRoute = { ok: true } | { ok: false; error: string };
 
+/** The divergence panel's read port — the daemon wires the real service in. */
+export interface DivergencePort {
+  list(): Promise<DivergenceEntry[]>;
+}
+
+/** The usage-rollups view's read port. */
+export interface UsageRollupsPort {
+  list(): Promise<UsageRollups>;
+}
+
 export interface GatewayOptions {
   journal: EventJournal;
   token: string;
@@ -22,6 +37,13 @@ export interface GatewayOptions {
    * typed error instead of crashing the session path.
    */
   fsBridge?: FsBridge;
+  /**
+   * Observability read ports — absent until wired, degrading their requests
+   * to typed errors the same way (blueprint: "Divergence view", "Cost &
+   * token tracking").
+   */
+  divergence?: DivergencePort;
+  usageRollups?: UsageRollupsPort;
 }
 
 /**
@@ -138,6 +160,16 @@ export class Gateway {
     if (parsed.data.type === 'fs_request') {
       this.handleFsRequest(ws, parsed.data.requestId, parsed.data.request);
     }
+    if (parsed.data.type === 'divergence_request') {
+      this.handleObservabilityRequest(ws, parsed.data.requestId, 'divergence', () =>
+        this.options.divergence?.list(),
+      );
+    }
+    if (parsed.data.type === 'usage_rollups_request') {
+      this.handleObservabilityRequest(ws, parsed.data.requestId, 'usage rollups', () =>
+        this.options.usageRollups?.list(),
+      );
+    }
     if (parsed.data.type === 'decide') {
       const outcome =
         this.onDecision?.(parsed.data.sessionId, parsed.data.decision) ??
@@ -146,6 +178,38 @@ export class Gateway {
         this.send(ws, { type: 'error', message: outcome.error });
       }
     }
+  }
+
+  /**
+   * Observability RPC: one read per request, answered by exactly one result
+   * or a typed error — the FS-RPC degradation pattern (a missing port is an
+   * error message, not a silent hang).
+   */
+  private async handleObservabilityRequest(
+    ws: WebSocket,
+    requestId: string,
+    label: string,
+    read: () => Promise<DivergenceEntry[] | UsageRollups> | undefined,
+  ): Promise<void> {
+    let payload: DivergenceEntry[] | UsageRollups | undefined;
+    try {
+      payload = await read();
+    } catch (error) {
+      this.send(ws, {
+        type: 'error',
+        message: `${label} request failed: ${(error as Error).message}`,
+      });
+      return;
+    }
+    if (payload === undefined) {
+      this.send(ws, { type: 'error', message: `no ${label} service is running` });
+      return;
+    }
+    if (Array.isArray(payload)) {
+      this.send(ws, { type: 'divergence_result', requestId, entries: payload });
+      return;
+    }
+    this.send(ws, { type: 'usage_rollups_result', requestId, rollups: payload });
   }
 
   /**
