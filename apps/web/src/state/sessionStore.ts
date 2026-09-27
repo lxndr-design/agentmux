@@ -6,6 +6,7 @@ import type {
   SessionState,
 } from '@agentmux/protocol';
 import { create } from 'zustand';
+import { createEnvelopeCoalescer, type EnvelopeCoalescer } from './envelopeCoalescer.js';
 import {
   fetchDemoConfig,
   sendDemoDecision,
@@ -58,6 +59,12 @@ interface SessionStoreActions {
   toggleTranscript(sessionId: string): void;
   decide(sessionId: string, requestId: string, decision: ApprovalDecision['decision']): void;
   applyEnvelope(sessionId: string, envelope: AgentEventEnvelope): void;
+  /**
+   * Batch apply — one store update per coalesced frame. The coalescing
+   * boundary turns an N-envelope burst into exactly one set() and one React
+   * commit (blueprint ~33 ms frame budget); dedupe still runs per envelope.
+   */
+  applyEnvelopes(sessionId: string, envelopes: readonly AgentEventEnvelope[]): void;
   setPhase(sessionId: string, phase: StreamPhase): void;
   setStreamError(sessionId: string, message: string | null): void;
 }
@@ -66,6 +73,7 @@ export type SessionStore = SessionStoreState & SessionStoreActions;
 
 /** WS clients are effects, not render state — they live beside the store. */
 const clients = new Map<string, WsSessionClient>();
+const coalescers = new Map<string, EnvelopeCoalescer>();
 
 const TERMINAL_STATES: ReadonlySet<SessionState> = new Set(['stopped', 'crashed']);
 
@@ -206,12 +214,24 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   applyEnvelope(sessionId, envelope) {
+    get().applyEnvelopes(sessionId, [envelope]);
+  },
+
+  applyEnvelopes(sessionId, envelopes) {
     set((state) => {
       const session = findSession(state, sessionId);
-      if (session === undefined) return state;
-      // Dedupe: replay tails overlap buffered live frames; resync re-delivers.
-      if (session.lastSeq !== null && envelope.seq <= session.lastSeq) return state;
-      const next = deriveEnvelopeView(session, envelope);
+      if (session === undefined || envelopes.length === 0) return state;
+      let next = session;
+      // The store does not maintain lastSeq (the WS client owns replay
+      // dedupe), so the batch tracks its own seen-max, seeded from the last
+      // retained envelope to drop replay-tail overlaps.
+      let maxSeq = session.envelopes.at(-1)?.seq ?? -1;
+      for (const envelope of envelopes) {
+        if (envelope.seq <= maxSeq) continue;
+        maxSeq = envelope.seq;
+        next = deriveEnvelopeView(next, envelope);
+      }
+      if (next === session) return state;
       if (TERMINAL_STATES.has(next.state)) {
         clients.get(sessionId)?.stop(); // stream over — the tombstone stays
       }
@@ -234,16 +254,23 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
 function attachClient(sessionId: string, daemonUrl: string): void {
   clients.get(sessionId)?.stop();
+  coalescers.get(sessionId)?.destroy();
   const store = useSessionStore;
   const { daemonToken } = store.getState();
   const url =
     daemonToken === null
       ? daemonUrl
       : `${daemonUrl}${daemonUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(daemonToken)}`;
+  // Coalescing boundary: per-envelope callbacks batch into one store update
+  // per frame, so bursts (replay especially) cost one commit, not N.
+  const coalescer = createEnvelopeCoalescer({
+    flush: (id, batch) => store.getState().applyEnvelopes(id, batch),
+  });
+  coalescers.set(sessionId, coalescer);
   const client = new WsSessionClient({
     url,
     sessionId,
-    onEnvelope: (envelope) => store.getState().applyEnvelope(sessionId, envelope),
+    onEnvelope: (envelope) => coalescer.push(sessionId, envelope),
     onPhase: (phase) => store.getState().setPhase(sessionId, phase),
     onProtocolError: (message) => store.getState().setStreamError(sessionId, message),
   });
