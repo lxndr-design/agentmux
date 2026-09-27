@@ -86,6 +86,10 @@ function resumptionEvents() {
       done: true,
     },
     { kind: 'usage', tokensIn: 1234, tokensOut: 567 },
+    // Turn complete → back to idle, exactly what the real connectors emit
+    // (claude parser transitionTo('ready'), codex ditto) — the attention
+    // state reads this as idle-done.
+    { kind: 'state_change', from: 'working', to: 'ready' },
   ];
 }
 
