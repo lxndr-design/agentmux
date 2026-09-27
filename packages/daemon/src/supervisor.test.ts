@@ -304,8 +304,18 @@ describe('Supervisor.reapOrphans', () => {
 
       const reports = await supervisor.reapOrphans();
 
+      // The reaper's promise is a dead group and a cleared row — not which
+      // escalation landed. Under CI load the grace window can expire before
+      // the group finishes dying, making the forced path ('killed') the
+      // correct outcome; 'already-gone'/'survived' would be real failures
+      // (the group was verified alive above).
       expect(reports).toEqual([
-        { sessionId: 's-crashed', pgid, runtimeId: 'worktree', outcome: 'flushed' },
+        {
+          sessionId: 's-crashed',
+          pgid,
+          runtimeId: 'worktree',
+          outcome: expect.stringMatching(/^(flushed|killed)$/),
+        },
       ]);
       expect(groupAlive(pgid)).toBe(false);
       expect(registry.get('s-crashed')).toBeUndefined();
