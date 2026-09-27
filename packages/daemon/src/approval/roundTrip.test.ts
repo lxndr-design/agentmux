@@ -1,3 +1,9 @@
+import { execFile } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import { WebSocket } from 'ws';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AgentEvent } from '@agentmux/protocol';
@@ -18,6 +24,7 @@ const SESSION_ID = 'roundtrip-1';
 
 const openDaemons: DaemonHandle[] = [];
 const openClients: DecideClient[] = [];
+const dirs: string[] = [];
 
 /** Minimal schema-validating WS client — decisions out, events in. */
 class DecideClient {
@@ -162,10 +169,30 @@ async function until(
 afterEach(async () => {
   for (const client of openClients.splice(0)) await client.close();
   for (const handle of openDaemons.splice(0)) await handle.close();
+  for (const dir of dirs.splice(0)) {
+    await rm(dir, { recursive: true, force: true, maxRetries: 3 });
+  }
   delete process.env.FAKE_SIGNALS_FILE;
   delete process.env.FAKE_IGNORE_SIGINT;
   delete process.env.FAKE_CHILD_MARKER;
 });
+
+/**
+ * A real git repo as the daemon's workspace root — a supervisor spawn runs
+ * the worktree/local runtime, whose main-checkout registration runs git in
+ * that root.
+ */
+async function tempRepo(): Promise<string> {
+  const repo = mkdtempSync(path.join(tmpdir(), 'agentmux-roundtrip-'));
+  dirs.push(repo);
+  writeFileSync(path.join(repo, 'README.md'), '# fixture\n', 'utf8');
+  const execFileAsync = promisify(execFile);
+  const identity = ['-c', 'user.name=agentmux-test', '-c', 'user.email=test@agentmux.local'];
+  await execFileAsync('git', [...identity, 'init', '-q', '-b', 'main'], { cwd: repo });
+  await execFileAsync('git', [...identity, 'add', '.'], { cwd: repo });
+  await execFileAsync('git', [...identity, 'commit', '-q', '-m', 'init'], { cwd: repo });
+  return repo;
+}
 
 describe('approval round trip through the daemon', () => {
   it(
@@ -303,6 +330,57 @@ describe('approval round trip through the daemon', () => {
         await session.kill({ graceMs: 250 }).catch(() => undefined);
         await session.exit;
       }
+    },
+  );
+});
+
+describe('supervisor-spawned sessions complete the round trip', () => {
+  // The PR #8 follow-up: the daemon itself must wire supervisor-spawned
+  // sessions into the approval engine — no attachSession call in this test.
+  it(
+    'a daemon-spawned CLI pauses on approval and resumes on a WS decision',
+    { timeout: 45_000 },
+    async () => {
+      const daemon = await startDaemon({ port: 0, workspaceRoot: await tempRepo() });
+      openDaemons.push(daemon);
+
+      // Spawned exactly the way the automation API spawns sessions.
+      const started = await daemon.supervisor.start({
+        sessionId: 'roundtrip-supervised',
+        connectorId: 'claude-code',
+        command: process.execPath,
+        extraArgs: [FAKE_CLI.pathname],
+        useMainCheckout: true,
+        initialTask: 'use:Bash rm -rf ./dist',
+      });
+      expect(started.id).toBe('roundtrip-supervised');
+
+      // The client subscribes after the spawn — replay delivers any events
+      // that already fired, including the waiting-approval if the fake CLI
+      // ran its approval turn before the client connected.
+      const client = await DecideClient.open(daemon);
+      client.subscribe('roundtrip-supervised');
+      await client.nextEvent(
+        (payload) =>
+          payload.kind === 'state_change' &&
+          payload.to === 'waiting-approval' &&
+          payload.request?.tool === 'Bash',
+        'waiting-approval event',
+      );
+      client.decide('roundtrip-supervised', 'req_001', 'deny', 'not from the API path');
+
+      // The denial reason reaches the agent through the wired session and it
+      // resumes — the full round trip, no manual attachSession anywhere.
+      await client.nextEvent(
+        (payload) =>
+          payload.kind === 'turn' &&
+          payload.role === 'assistant' &&
+          payload.text.includes('denied: not from the API path'),
+        'denial reason delivered to the agent',
+      );
+      expect(daemon.supervisor.get('roundtrip-supervised')?.state).toBe('working');
+
+      await daemon.supervisor.kill('roundtrip-supervised', { graceMs: 250 });
     },
   );
 });

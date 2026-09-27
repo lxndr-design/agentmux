@@ -48,6 +48,23 @@ export const MIGRATIONS: readonly string[] = [
     started_at INTEGER NOT NULL
   );
   `,
+  `
+  CREATE TABLE factory_tickets (
+    id           TEXT PRIMARY KEY,
+    title        TEXT NOT NULL,
+    spec         TEXT NOT NULL,
+    repo         TEXT,
+    base_branch  TEXT,
+    runtime      TEXT NOT NULL,
+    policy_class TEXT NOT NULL,
+    budget_usd   REAL,
+    retries      INTEGER NOT NULL,
+    best_of_n    INTEGER NOT NULL,
+    state        TEXT NOT NULL,
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL
+  );
+  `,
 ];
 
 export function migrate(db: Database): void {

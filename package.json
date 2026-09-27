@@ -10,8 +10,8 @@
     "node": ">=20.19"
   },
   "scripts": {
-    "build": "npm run build -w @agentmux/protocol && npm run build -w @agentmux/daemon && npm run build -w @agentmux/web",
-    "test": "npm run build && npm run test -w @agentmux/protocol && npm run test -w @agentmux/daemon && npm run test -w @agentmux/web",
+    "build": "npm run build -w @agentmux/protocol && npm run build -w @agentmux/daemon && npm run build -w @agentmux/cli && npm run build -w @agentmux/web",
+    "test": "npm run build && npm run test -w @agentmux/protocol && npm run test -w @agentmux/daemon && npm run test -w @agentmux/cli && npm run test -w @agentmux/web",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

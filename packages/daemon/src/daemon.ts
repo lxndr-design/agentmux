@@ -3,7 +3,9 @@ import { createServer, type Server } from 'node:http';
 import type { AgentEvent, AgentEventEnvelope } from '@agentmux/protocol';
 import { resolveDaemonOptions, type DaemonOptions, type ResolvedDaemonOptions } from './config.js';
 import { FsBridge } from './fs-bridge.js';
+import { FactoryQueue } from './factory-queue.js';
 import { Gateway } from './gateway.js';
+import { HttpApi } from './http-api.js';
 import { EventJournal } from './journal.js';
 import { ApprovalEngine } from './approval/approvalEngine.js';
 import { ClaudeCodeConnector } from './connectors/claude-code/connector.js';
@@ -33,6 +35,8 @@ export interface DaemonHandle {
    * register themselves here (attachSession / setPolicy).
    */
   readonly approvals: ApprovalEngine;
+  /** The code-factory ticket queue — the automation API's enqueue edge. */
+  readonly factory: FactoryQueue;
   /** Journals the event (assigning the next seq) and fans it out. */
   ingest(sessionId: string, event: AgentEvent): AgentEventEnvelope;
   /** The actually-bound address — a port-0 boot resolves here. */
@@ -71,6 +75,17 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     approvals.ingest(sessionId, event);
 
   const registry = new ProcessRegistry(journal.database);
+  const factory = new FactoryQueue(journal.database);
+
+  // Shipped connectors first, then the option's test seam merges over them.
+  const connectors = new Map<string, AgentConnector>([
+    ['claude-code', new ClaudeCodeConnector()],
+    ['codex', new CodexConnector()],
+  ]);
+  for (const [id, connector] of resolved.connectors) {
+    connectors.set(id, connector);
+  }
+
   const supervisor = new Supervisor({
     runtimes: {
       worktree: new WorktreeRuntime(worktrees),
@@ -79,10 +94,12 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     defaultRuntimeId: resolved.runtime,
     registry,
     ingest,
-    connectors: new Map<string, AgentConnector>([
-      ['claude-code', new ClaudeCodeConnector()],
-      ['codex', new CodexConnector()],
-    ]),
+    connectors,
+    // The PR #8 follow-up: a session the supervisor spawns (via the UI's
+    // supervisor path or the automation API) gets the same approval
+    // round-trip a connector-attached session has — without this, an
+    // API-spawned session's cards escalate where no decision can reach.
+    onSessionSpawned: (sessionId, session) => approvals.attachSession(sessionId, session),
   });
 
   // Boot-time orphan reap: rows the previous daemon instance left behind are
@@ -96,9 +113,27 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     }
   }
 
-  const server = createServer((_request, response) => {
-    response.writeHead(404, { 'content-type': 'text/plain' });
-    response.end('agentmux daemon — WebSocket endpoint only\n');
+  // The actually-bound address, resolved lazily — a port-0 boot binds an
+  // ephemeral port the handle and the API's stream pointers both read.
+  const address = (): { host: string; port: number } => {
+    const bound = server.address();
+    if (bound === null || typeof bound === 'string') {
+      throw new Error('daemon socket is not bound to an IP endpoint');
+    }
+    return { host: bound.address, port: bound.port };
+  };
+
+  const httpApi = new HttpApi({
+    token,
+    journal,
+    supervisor,
+    queue: factory,
+    address,
+  });
+  const server = createServer((request, response) => {
+    // The automation API serves /api/*; anything else gets the same answer
+    // the pre-API daemon gave. WS upgrades are handled by the listener below.
+    httpApi.handle(request, response);
   });
   server.on('upgrade', (request, socket, head) => {
     gateway.handleUpgrade(request, socket, head);
@@ -122,6 +157,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     worktrees,
     supervisor,
     approvals,
+    factory,
     ingest(sessionId, event) {
       // Journal first, fan out second — nothing observable may be missing
       // from the state of record (blueprint: "Sequencing and replay"). The
@@ -129,13 +165,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
       // decisions journal before anything fans out.
       return approvals.ingest(sessionId, event);
     },
-    address() {
-      const bound = server.address();
-      if (bound === null || typeof bound === 'string') {
-        throw new Error('daemon socket is not bound to an IP endpoint');
-      }
-      return { host: bound.address, port: bound.port };
-    },
+    address,
     close: () => closeDaemon(server, gateway, journal, fsBridge, stopChangeRelay),
   };
 }
