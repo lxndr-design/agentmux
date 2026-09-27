@@ -2,6 +2,8 @@ export * from './config.js';
 export * from './journal.js';
 export * from './wire.js';
 export * from './gateway.js';
+export * from './divergence.js';
+export * from './usage-rollups.js';
 export * from './http-api.js';
 export * from './factory-queue.js';
 export * from './connectors/index.js';

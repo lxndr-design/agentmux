@@ -13,4 +13,5 @@ export * from './approval.js';
 export * from './events.js';
 export * from './envelope.js';
 export * from './fs.js';
+export * from './observability.js';
 export * from './detect.js';

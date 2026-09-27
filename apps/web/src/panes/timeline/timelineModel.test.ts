@@ -160,13 +160,13 @@ describe('buildTimelineItems — state_change and usage', () => {
     expect(items[0]).toMatchObject({ kind: 'state', from: 'ready', to: 'working' });
   });
 
-  it('collapses usage events to the latest totals instead of rows', () => {
+  it('sums usage deltas — usage events are per-turn increments, not snapshots', () => {
     const { items, usage } = buildTimelineItems([
       envelope(0, { kind: 'usage', tokensIn: 10, tokensOut: 5 }),
       envelope(1, { kind: 'usage', tokensIn: 1234, tokensOut: 567, planQuota: 42 }),
     ]);
     expect(items).toHaveLength(0);
-    expect(usage).toEqual({ tokensIn: 1234, tokensOut: 567, planQuota: 42 });
+    expect(usage).toEqual({ tokensIn: 1244, tokensOut: 572, planQuota: 42 });
   });
 
   it('returns usage null when no usage event arrived', () => {

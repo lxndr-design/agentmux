@@ -3,9 +3,11 @@ import {
   agentEventEnvelopeSchema,
   approvalDecisionSchema,
   connectorDetectSchema,
+  divergenceEntrySchema,
   fsErrorSchema,
   fsRequestSchema,
   fsResultSchema,
+  usageRollupsSchema,
 } from '@agentmux/protocol';
 
 /**
@@ -53,6 +55,34 @@ export const fsChangeMessageSchema = z.object({
     .optional(),
 });
 
+/**
+ * Observability RPC (blueprint: "Divergence view", "Cost & token tracking").
+ * Same requestId correlation as the FS RPC; both requests take no parameters —
+ * the panel is workspace-global.
+ */
+
+export const divergenceRequestMessageSchema = z.object({
+  type: z.literal('divergence_request'),
+  requestId: z.string().min(1),
+});
+
+export const divergenceResultMessageSchema = z.object({
+  type: z.literal('divergence_result'),
+  requestId: z.string().min(1),
+  entries: z.array(divergenceEntrySchema),
+});
+
+export const usageRollupsRequestMessageSchema = z.object({
+  type: z.literal('usage_rollups_request'),
+  requestId: z.string().min(1),
+});
+
+export const usageRollupsResultMessageSchema = z.object({
+  type: z.literal('usage_rollups_result'),
+  requestId: z.string().min(1),
+  rollups: usageRollupsSchema,
+});
+
 /** Onboarding: detect every registered connector's install and login state. */
 export const detectRequestMessageSchema = z.object({
   type: z.literal('detect_request'),
@@ -77,6 +107,8 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
     fromSeq: z.number().int().nonnegative().optional(),
   }),
   fsRequestMessageSchema,
+  divergenceRequestMessageSchema,
+  usageRollupsRequestMessageSchema,
   detectRequestMessageSchema,
   z.object({
     type: z.literal('decide'),
@@ -117,6 +149,8 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
   fsResultMessageSchema,
   fsErrorMessageSchema,
   fsChangeMessageSchema,
+  divergenceResultMessageSchema,
+  usageRollupsResultMessageSchema,
   detectResultMessageSchema,
 ]);
 export type ServerMessage = z.infer<typeof serverMessageSchema>;

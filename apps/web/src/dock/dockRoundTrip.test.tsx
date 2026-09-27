@@ -20,7 +20,17 @@ const ready = (): Promise<DockviewApi> =>
 
 const panelIds = (api: DockviewApi): string[] => api.panels.map((panel) => panel.id);
 
-const DEFAULT_PANELS = ['agent', 'diff', 'editor', 'files', 'terminal'].sort();
+// The full fresh-workspace shell: the five base panes plus the two
+// observability panes, which restoreOrDefault guarantees on every dock.
+const DEFAULT_PANELS = [
+  'agent',
+  'diff',
+  'divergence',
+  'editor',
+  'files',
+  'terminal',
+  'usage',
+].sort();
 
 beforeEach(() => {
   localStorage.clear();

@@ -191,3 +191,28 @@ describe('login-state classification', () => {
     expect(classifyLoginStatus('', null)).toBe('unavailable');
   });
 });
+
+describe('app-server token usage normalization', () => {
+  it('emits per-event deltas from cumulative thread totals and clamps decreases to zero', () => {
+    const events: unknown[] = [];
+    const mapper = new CodexEventMapper((event) => events.push(event));
+    const notify = (input: number, output: number) =>
+      mapper.consumeAppServerLine(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'thread/tokenUsage/updated',
+          params: { tokenUsage: { total: { input_tokens: input, output_tokens: output } } },
+        }),
+      );
+
+    notify(100, 42); // first sighting: the whole thread total is the delta
+    notify(250, 60); // cumulative growth → emit the difference
+    notify(200, 10); // counters reset within one process → clamp, never negative
+
+    expect(events).toEqual([
+      { kind: 'usage', tokensIn: 100, tokensOut: 42 },
+      { kind: 'usage', tokensIn: 150, tokensOut: 18 },
+      { kind: 'usage', tokensIn: 0, tokensOut: 0 },
+    ]);
+  });
+});

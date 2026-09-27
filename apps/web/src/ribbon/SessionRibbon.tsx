@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { selectVisibleSessions, useSessionStore } from '../state/sessionStore.js';
 import { DEFAULT_WORKSPACE_ID, workspaceOfSession } from '../state/workspacesModel.js';
 import { openOnboardingPanel } from '../dock/dockApiRef.js';
+import { deriveSessionAttention } from './attention.js';
 
 /**
  * Session ribbon — one cell per session with its lifecycle badge (the
@@ -111,6 +112,7 @@ export function SessionRibbon() {
       <div className="ribbon__sessions">
         {sessions.map((session) => {
           const terminal = session.state === 'stopped' || session.state === 'crashed';
+          const attention = deriveSessionAttention(session);
           return (
             <div
               key={session.id}
@@ -120,17 +122,17 @@ export function SessionRibbon() {
                   : 'ribbon-session'
               }
               data-testid="session-chip"
+              data-attention={attention.level}
               onClick={() => setActive(session.id)}
             >
               <span
-                className={
-                  session.state === 'waiting-approval' ? 'badge badge--waiting-approval' : 'badge'
-                }
+                className="badge"
                 data-testid={`state-badge-${session.id}`}
                 data-state={session.state}
-                title={session.state}
+                data-attention={attention.level}
+                title={attention.level === 'none' ? session.state : attention.label}
               >
-                {session.state}
+                {attention.label}
               </span>
               <span className="ribbon-session__name">{session.name}</span>
               {multipleWorkspaces && (
