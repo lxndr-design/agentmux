@@ -976,6 +976,138 @@ body {
   font-size: 0.7rem;
 }
 
+.ribbon__setup {
+  background: var(--bg-hover);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ---- Onboarding wizard (CLI detect + guided auth handoff) ---- */
+
+.onboarding {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.onboarding__title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.onboarding__privacy,
+.onboarding__detail {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.onboarding__detail--dim {
+  margin-top: -4px;
+}
+
+.onboarding__status {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.8rem;
+}
+
+.onboarding__error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.8rem;
+}
+
+.onboarding__row {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.onboarding__row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.onboarding__label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.onboarding__version {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.onboarding__badge {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 0.7rem;
+}
+
+.onboarding__badge--ok {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.onboarding__badge--warn {
+  color: var(--warn, var(--text));
+  border-color: var(--warn, var(--border));
+}
+
+.onboarding__badge--bad {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.onboarding__step {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.onboarding__step code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+}
+
+.onboarding__copy,
+.onboarding__recheck {
+  background: var(--bg-hover);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.onboarding__recheck {
+  align-self: flex-start;
+  padding: 5px 12px;
+}
+
 /* Usage footer */
 .usage-footer {
   color: var(--text-dim);

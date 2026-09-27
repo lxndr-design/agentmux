@@ -27,6 +27,11 @@ export interface DaemonHandle {
   readonly fs: FsBridge;
   /** Per-session worktree lifecycle (create/remove/gc/reconcile). */
   readonly worktrees: WorktreeManager;
+  /**
+   * The WS gateway — exposed for onboarding detect fixtures and tests that
+   * stub the connector registry's detection answers.
+   */
+  readonly gateway: Gateway;
   /** The supervisor: owns live agent sessions, kills, restarts, and the boot reap. */
   readonly supervisor: Supervisor;
   /**
@@ -78,6 +83,9 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
   const factory = new FactoryQueue(journal.database);
 
   // Shipped connectors first, then the option's test seam merges over them.
+  // The connector registry doubles as the onboarding wizard's data source:
+  // the gateway answers detect_request with each connector's own probe
+  // (install + login STATUS — the CLIs own the credentials).
   const connectors = new Map<string, AgentConnector>([
     ['claude-code', new ClaudeCodeConnector()],
     ['codex', new CodexConnector()],
@@ -85,7 +93,13 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
   for (const [id, connector] of resolved.connectors) {
     connectors.set(id, connector);
   }
-
+  gateway.onDetect = () =>
+    Promise.all(
+      [...connectors.entries()].map(async ([connectorId, connector]) => ({
+        connectorId,
+        ...(await connector.detect()),
+      })),
+    );
   const supervisor = new Supervisor({
     runtimes: {
       worktree: new WorktreeRuntime(worktrees),
@@ -155,6 +169,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHa
     journal,
     fs: fsBridge,
     worktrees,
+    gateway,
     supervisor,
     approvals,
     factory,

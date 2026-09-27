@@ -6,6 +6,8 @@ import { FileTreePane } from '../panes/FileTreePane';
 import { EditorPane } from '../panes/EditorPane';
 import { DiffPane } from '../panes/DiffPane';
 import { loadStoredLayout, saveLayout, validateStoredLayout } from './layoutStorage.js';
+import { OnboardingPane } from '../onboarding/OnboardingPane';
+import { setDockApi } from './dockApiRef.js';
 import 'dockview-react/dist/styles/dockview.css';
 
 /**
@@ -40,12 +42,17 @@ function DiffPanel() {
   return <DiffPane />;
 }
 
+function OnboardingPanel() {
+  return <OnboardingPane />;
+}
+
 const components = {
   agent: AgentPanel,
   terminal: TerminalPanel,
   files: FileTreePanel,
   editor: EditorPanel,
   diff: DiffPanel,
+  onboarding: OnboardingPanel,
 };
 
 /** Component keys the registry serves — stored layouts are validated against this. */
@@ -100,6 +107,12 @@ export function DockHost({ workspaceId }: { workspaceId: string | null }) {
   const workspaceRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Dock chrome outside the dock (the ribbon's CLI-setup button) needs the
+    // live api handle; clear it on unmount so stale adds can't happen.
+    return () => setDockApi(null);
+  }, []);
+
+  useEffect(() => {
     const api = apiRef.current;
     if (api === null || workspaceId === null) return;
     // Workspace switch: save the outgoing layout under its own id before the
@@ -116,6 +129,7 @@ export function DockHost({ workspaceId }: { workspaceId: string | null }) {
   const onReady = (event: DockviewReadyEvent) => {
     const api: DockviewApi = event.api;
     apiRef.current = api;
+    setDockApi(api);
     if (workspaceId !== null) {
       workspaceRef.current = workspaceId;
       restoreOrDefault(api, workspaceId);

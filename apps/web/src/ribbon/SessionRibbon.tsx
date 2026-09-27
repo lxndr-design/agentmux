@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { selectVisibleSessions, useSessionStore } from '../state/sessionStore.js';
 import { DEFAULT_WORKSPACE_ID, workspaceOfSession } from '../state/workspacesModel.js';
+import { openOnboardingPanel } from '../dock/dockApiRef.js';
 
 /**
  * Session ribbon — one cell per session with its lifecycle badge (the
@@ -97,6 +98,15 @@ export function SessionRibbon() {
         onClick={() => void startSession()}
       >
         + Start session
+      </button>
+      <button
+        type="button"
+        className="ribbon__setup"
+        data-testid="open-onboarding"
+        title="Check CLI installs and logins"
+        onClick={() => openOnboardingPanel()}
+      >
+        CLI setup
       </button>
       <div className="ribbon__sessions">
         {sessions.map((session) => {
