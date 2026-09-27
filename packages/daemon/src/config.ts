@@ -8,6 +8,7 @@
  */
 
 import { resolveRuntimeId, type RuntimeId } from './runtime.js';
+import type { AgentConnector } from './connectors/types.js';
 
 export const DAEMON_DEFAULT_PORT = 8787;
 export const DAEMON_DEFAULT_HOST = '127.0.0.1';
@@ -39,6 +40,13 @@ export interface DaemonOptions {
    * default 10 minutes); the agent receives the timeout as its denial reason.
    */
   approvalTimeoutMs?: number;
+  /**
+   * Test seam (like the supervisor's `command`/`extraArgs`): extra or
+   * replacement connectors, merged over the shipped `claude-code`/`codex`
+   * pair so integration tests can drive sessions through a fake connector —
+   * never a real CLI, never API keys. Production never passes this.
+   */
+  connectors?: ReadonlyMap<string, AgentConnector>;
 }
 
 export type ResolvedDaemonOptions = Required<DaemonOptions>;
@@ -57,5 +65,6 @@ export function resolveDaemonOptions(options: DaemonOptions = {}): ResolvedDaemo
     workspaceRoot: options.workspaceRoot ?? process.cwd(),
     runtime: resolveRuntimeId(options.runtime),
     approvalTimeoutMs: options.approvalTimeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS,
+    connectors: options.connectors ?? new Map<string, AgentConnector>(),
   };
 }

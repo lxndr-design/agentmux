@@ -37,6 +37,14 @@ export interface SupervisorOptions {
   readonly ingest: (sessionId: string, event: AgentEvent) => void;
   /** Connector registry — 'claude-code', 'codex', and whatever ships next. */
   readonly connectors: ReadonlyMap<string, AgentConnector>;
+  /**
+   * Called exactly once per successful spawn — the daemon's hook for wiring
+   * the fresh session into cross-cutting engines. Without it a
+   * supervisor-spawned session escalates approval cards that no decision can
+   * ever reach (the PR #8 follow-up: the daemon attaches the approval
+   * round-trip here).
+   */
+  readonly onSessionSpawned?: (sessionId: string, session: AgentSession) => void;
   /** Grace window for supervised kills; default 5s (blueprint kill semantics). */
   readonly killGraceMs?: number;
   /** Grace window for boot-time orphan reaping; default 1s. */
@@ -59,6 +67,12 @@ export interface SupervisorStartRequest {
    * explicit opt-out; the worktree runtime is the default).
    */
   useMainCheckout?: boolean;
+  /**
+   * First user turn, dispatched when the session reports ready — the
+   * `agentmux run "task"` one-shot path (F4f parity). Restart replays the
+   * whole request, so an explicit restart re-runs the task by design.
+   */
+  initialTask?: string;
 }
 
 /** The supervisor's view of one live session — the activity ribbon's source. */
@@ -157,6 +171,22 @@ export class Supervisor {
     }
 
     let pgid: number | null = null;
+    // The session lands here mid-spawn (the ready transition can fire before
+    // connector.spawn resolves) — a holder the onEvent closure reads.
+    const sessionRef: { current?: AgentSession } = {};
+    let initialTaskSent = false;
+    // Exactly-once dispatch of the one-shot task, gated on the CLI's own
+    // ready transition — writing to stream-json stdin earlier would race the
+    // CLI's startup. Fires from the ready state_change, with a fallback check
+    // after spawn resolves (the transition may land before spawn returns).
+    const sendInitialTask = (): void => {
+      const session = sessionRef.current;
+      if (request.initialTask === undefined || initialTaskSent || session === undefined) return;
+      if (session.state !== 'ready') return;
+      initialTaskSent = true;
+      session.send(request.initialTask);
+    };
+
     const spawnConfig: SessionSpawnConfig = {
       sessionId: request.sessionId,
       cwd: provision.cwd,
@@ -179,8 +209,14 @@ export class Supervisor {
     };
 
     const session = await connector.spawn(spawnConfig, {
-      onEvent: (event) => this.options.ingest(request.sessionId, event),
+      onEvent: (event) => {
+        this.options.ingest(request.sessionId, event);
+        // The one-shot task rides the session's own ready transition.
+        if (event.kind === 'state_change' && event.to === 'ready') sendInitialTask();
+      },
     });
+    sessionRef.current = session;
+    sendInitialTask();
 
     const entry: SupervisorEntry = {
       request,
@@ -190,11 +226,23 @@ export class Supervisor {
       pgid,
     };
     this.entries.set(request.sessionId, entry);
+    // PR #8 follow-up: the daemon hooks here to attach the approval
+    // round-trip (approvals.attachSession) — a supervisor-spawned session
+    // must answer its permission prompts the same way a connector-attached
+    // one does.
+    this.options.onSessionSpawned?.(request.sessionId, session);
 
     // Every exit path — clean, killed, crash — clears the registry row. The
     // connector's own terminal state_change is the tombstone.
     void session.exit
       .then(() => {
+        if (request.initialTask !== undefined && !initialTaskSent) {
+          // Observable, not silent: a one-shot that dies before its CLI was
+          // ever ready never delivered the task it was spawned with.
+          console.warn(
+            `agentmux: session '${request.sessionId}' exited before ready — the initial task was never delivered`,
+          );
+        }
         this.options.registry.remove(request.sessionId);
       })
       .catch(() => {
