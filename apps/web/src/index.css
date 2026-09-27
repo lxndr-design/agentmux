@@ -923,6 +923,59 @@ body {
   gap: 4px;
 }
 
+/* ---- Workspace bar (named session groups) ---- */
+
+.ribbon__workspaces {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ribbon__workspace-select,
+.ribbon-session__move {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 0.8rem;
+}
+
+.ribbon__workspace-input {
+  width: 120px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+}
+
+.ribbon__workspace-input::placeholder {
+  color: var(--text-dim);
+}
+
+.ribbon__workspace-add,
+.ribbon__workspace-delete {
+  background: var(--bg-hover);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.ribbon__workspace-add:disabled {
+  color: var(--text-dim);
+  cursor: not-allowed;
+}
+
+.ribbon-session__move {
+  padding: 1px 3px;
+  font-size: 0.7rem;
+}
+
 /* Usage footer */
 .usage-footer {
   color: var(--text-dim);

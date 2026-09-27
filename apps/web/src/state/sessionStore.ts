@@ -9,6 +9,15 @@ import { create } from 'zustand';
 import { createEnvelopeCoalescer, type EnvelopeCoalescer } from './envelopeCoalescer.js';
 import { fetchDemoConfig, startDemoSession, stopDemoSession } from '../demo/demoClient.js';
 import { WsSessionClient, type StreamPhase } from '../ws/wsClient.js';
+import {
+  DEFAULT_WORKSPACE_ID,
+  isActiveWorkspaceSession,
+  withSessionAssigned,
+  withWorkspaceCreated,
+  withWorkspaceDeleted,
+  type WorkspaceRecord,
+} from './workspacesModel.js';
+import { initialWorkspaceSnapshot, saveWorkspaceSnapshot } from './workspaceStorage.js';
 
 /** Envelope cap per session — the timeline renders a window; this bounds memory. */
 export const MAX_ENVELOPES = 2000;
@@ -43,6 +52,9 @@ interface SessionStoreState {
   sessions: SessionView[];
   activeSessionId: string | null;
   columnCollapsed: boolean;
+  /** Named session groups (blueprint: workspaces) — pure logic in workspacesModel. */
+  workspaces: WorkspaceRecord[];
+  activeWorkspaceId: string;
 }
 
 interface SessionStoreActions {
@@ -51,6 +63,10 @@ interface SessionStoreActions {
   stopSession(sessionId: string): void;
   setActive(sessionId: string): void;
   toggleColumn(): void;
+  createWorkspace(name: string): void;
+  deleteWorkspace(id: string): void;
+  setActiveWorkspace(id: string): void;
+  moveSession(sessionId: string, workspaceId: string): void;
   toggleTranscript(sessionId: string): void;
   decide(
     sessionId: string,
@@ -88,6 +104,9 @@ function patchSession(
 function findSession(state: SessionStoreState, sessionId: string): SessionView | undefined {
   return state.sessions.find((session) => session.id === sessionId);
 }
+
+/** Boot-time workspace state: the stored snapshot, or the bare default group. */
+const initialWorkspaces = initialWorkspaceSnapshot();
 
 /**
  * Pure event → view derivation. Every session fact the UI shows (state badge,
@@ -142,6 +161,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   activeSessionId: null,
   columnCollapsed: false,
+  workspaces: initialWorkspaces.workspaces,
+  activeWorkspaceId: initialWorkspaces.activeWorkspaceId,
 
   async boot() {
     set({ booted: true });
@@ -169,6 +190,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
     set((state) => ({
       sessions: [...state.sessions, emptySession(sessionId, name)],
+      // New sessions join the active workspace — the group the operator is
+      // looking at is the group they are filling.
+      workspaces: withSessionAssigned(state.workspaces, sessionId, state.activeWorkspaceId),
       activeSessionId: sessionId,
     }));
     attachClient(sessionId, daemonUrl);
@@ -190,6 +214,35 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   toggleColumn() {
     set((state) => ({ columnCollapsed: !state.columnCollapsed }));
+  },
+
+  createWorkspace(name) {
+    set((state) => ({
+      workspaces: withWorkspaceCreated(state.workspaces, `ws-${crypto.randomUUID()}`, name),
+    }));
+  },
+
+  deleteWorkspace(id) {
+    set((state) => {
+      const next = withWorkspaceDeleted(state.workspaces, id);
+      if (next === null) return state; // default workspace and unknown ids are refused
+      return {
+        workspaces: next.workspaces,
+        activeWorkspaceId:
+          state.activeWorkspaceId === id ? DEFAULT_WORKSPACE_ID : state.activeWorkspaceId,
+      };
+    });
+  },
+
+  setActiveWorkspace(id) {
+    if (!get().workspaces.some((workspace) => workspace.id === id)) return;
+    set({ activeWorkspaceId: id });
+  },
+
+  moveSession(sessionId, workspaceId) {
+    set((state) => ({
+      workspaces: withSessionAssigned(state.workspaces, sessionId, workspaceId),
+    }));
   },
 
   toggleTranscript(sessionId) {
@@ -267,6 +320,31 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }));
   },
 }));
+
+/**
+ * Workspace persistence — one subscription is the single write path, so no
+ * action can forget to save. Fires only when workspace state actually
+ * changes (zustand hands us the previous state for comparison).
+ */
+useSessionStore.subscribe((state, prev) => {
+  if (state.workspaces !== prev.workspaces || state.activeWorkspaceId !== prev.activeWorkspaceId) {
+    saveWorkspaceSnapshot({
+      workspaces: state.workspaces,
+      activeWorkspaceId: state.activeWorkspaceId,
+    });
+  }
+});
+
+/**
+ * Ribbon sessions: the active workspace's members (unfiled sessions show in
+ * the default workspace — see isActiveWorkspaceSession). Pair with
+ * `useShallow` when consuming — the filter allocates a fresh array.
+ */
+export function selectVisibleSessions(state: SessionStoreState): SessionView[] {
+  return state.sessions.filter((session) =>
+    isActiveWorkspaceSession(state.workspaces, state.activeWorkspaceId, session.id),
+  );
+}
 
 /**
  * Attaches (or re-attaches) a session's WS stream. Exported for tests — the
