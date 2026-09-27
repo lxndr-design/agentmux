@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useSessionStore } from '../state/sessionStore.js';
 
 /**
@@ -88,10 +88,45 @@ export function ApprovalColumn() {
                   Deny
                 </button>
               </div>
+              <DenyWithReason
+                onDeny={(reason) => decide(session.id, request.requestId, 'deny', reason)}
+              />
             </li>
           ))}
         </ul>
       )}
     </aside>
+  );
+}
+
+/**
+ * Blueprint card anatomy: "Deny with reason — the reason is returned to the
+ * agent as the denial message." Local input; empty reasons are refused.
+ */
+function DenyWithReason({ onDeny }: { onDeny: (reason: string) => void }) {
+  const [reason, setReason] = useState('');
+  const trimmed = reason.trim();
+  return (
+    <div className="approval-deny-reason">
+      <input
+        type="text"
+        data-testid="deny-reason"
+        placeholder="Deny with a reason…"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && trimmed !== '') onDeny(trimmed);
+        }}
+      />
+      <button
+        type="button"
+        className="danger"
+        data-testid="deny-reason-btn"
+        disabled={trimmed === ''}
+        onClick={() => onDeny(trimmed)}
+      >
+        Deny with reason
+      </button>
+    </div>
   );
 }

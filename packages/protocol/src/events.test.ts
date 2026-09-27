@@ -34,6 +34,13 @@ const FIXTURES: AgentEvent[] = [
     request: { requestId: 'req_1', tool: 'Bash', risk: 'high', command: 'rm -rf ./dist' },
   },
   { kind: 'state_change', from: 'working', to: 'crashed', exit: { code: 1, signal: 'SIGKILL' } },
+  {
+    kind: 'approval_decision',
+    requestId: 'req_1',
+    decision: 'deny',
+    actor: 'human',
+    reason: 'no filesystem mutation today',
+  },
 ];
 
 describe('agentEventSchema', () => {
@@ -115,6 +122,8 @@ function handleEvent(event: AgentEvent): AgentEventKind {
       return 'usage';
     case 'state_change':
       return 'state_change';
+    case 'approval_decision':
+      return 'approval_decision';
     default:
       return assertNever(event);
   }
@@ -129,6 +138,7 @@ describe('discriminated-union exhaustiveness', () => {
       'tool_result',
       'usage',
       'state_change',
+      'approval_decision',
     ]);
     const fixtureKinds = new Set(FIXTURES.map((event) => event.kind));
     for (const kind of AGENT_EVENT_KINDS) {

@@ -1,4 +1,4 @@
-import type { AgentEventEnvelope } from '@agentmux/protocol';
+import type { AgentEventEnvelope, ApprovalDecision } from '@agentmux/protocol';
 import { parseServerMessage, type ClientMessage } from './wire.js';
 
 /**
@@ -68,6 +68,19 @@ export class WsSessionClient {
     this.ws?.close();
     this.ws = null;
     this.setPhase('closed');
+  }
+
+  /**
+   * Answers a pending approval — the pinned column's round-trip. Returns
+   * false when the socket is not open (the UI keeps the card pending; the
+   * request can still be answered after a reconnect).
+   */
+  sendDecision(decision: ApprovalDecision): boolean {
+    if (this.ws === null || this.ws.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+    this.send({ type: 'decide', sessionId: this.options.sessionId, decision });
+    return true;
   }
 
   private open(): void {

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DAEMON_DEFAULT_HOST, DAEMON_DEFAULT_PORT, resolveDaemonOptions } from './config.js';
+import {
+  DAEMON_DEFAULT_HOST,
+  DAEMON_DEFAULT_PORT,
+  DEFAULT_APPROVAL_TIMEOUT_MS,
+  resolveDaemonOptions,
+} from './config.js';
 
 describe('resolveDaemonOptions', () => {
   it('defaults to the blueprint loopback bind and the process cwd workspace', () => {
@@ -9,6 +14,7 @@ describe('resolveDaemonOptions', () => {
       journalPath: ':memory:',
       workspaceRoot: process.cwd(),
       runtime: 'worktree',
+      approvalTimeoutMs: DEFAULT_APPROVAL_TIMEOUT_MS,
     });
   });
 
@@ -20,6 +26,7 @@ describe('resolveDaemonOptions', () => {
         journalPath: 'journal.sqlite3',
         workspaceRoot: '/tmp/ws',
         runtime: 'local',
+        approvalTimeoutMs: 30_000,
       }),
     ).toEqual({
       port: 9000,
@@ -27,6 +34,7 @@ describe('resolveDaemonOptions', () => {
       journalPath: 'journal.sqlite3',
       workspaceRoot: '/tmp/ws',
       runtime: 'local',
+      approvalTimeoutMs: 30_000,
     });
   });
 
